@@ -1,0 +1,24 @@
+                   MVA CABLE                    
+                  NAGAPATTINAM                  
+------------------------------------------------
+               COLLECTION RECEIPT               
+------------------------------------------------
+Rcpt: COL-9                           19-09-2026
+Cust: Jaswa
+ID: C01
+Type: Cable
+Ph: 9597451419
+Area: boo
+------------------------------------------------
+Month: Sep 2026
+Mode: CASH
+------------------------------------------------
+Due:                                   Rs 450.00
+Paid now:                              Rs 100.00
+Total paid:                            Rs 350.00
+Balance:                               Rs 100.00
+------------------------------------------------
+            ONE HUNDRED RUPEES ONLY             
+              Collected by: admin               
+                   Thank You                    
+

@@ -1,0 +1,24 @@
+                   MVA CABLE                    
+                  NAGAPATTINAM                  
+------------------------------------------------
+               COLLECTION RECEIPT               
+------------------------------------------------
+Rcpt: COL-7                           19-09-2026
+Cust: jebs
+ID: w01
+Type: WiFi
+Ph: 8667214152
+Area: nag
+------------------------------------------------
+Month: Sep 2026
+Mode: CASH
+------------------------------------------------
+Due:                                  Rs 1500.00
+Paid now:                             Rs 1500.00
+Total paid:                           Rs 1500.00
+Balance:                                 Rs 0.00
+------------------------------------------------
+     ONE THOUSAND FIVE HUNDRED RUPEES ONLY      
+              Collected by: admin               
+                   Thank You                    
+

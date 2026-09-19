@@ -1,0 +1,235 @@
+.cust-types {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cust-type {
+  height: 42px;
+  border-radius: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: var(--color-bg-page);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.88rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.cust-type.on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.cust-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cust-tab {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: var(--color-bg-page);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cust-tab.on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.cust-filters {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.cust-filter {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cust-filter.on {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+  border-color: transparent;
+}
+
+.cust-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cust-type-pill.cable {
+  background: #ebf4ff;
+  color: #2b6cb0;
+}
+
+.cust-type-pill.wifi {
+  background: #e6fffa;
+  color: #234e52;
+}
+
+.cust-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.cust-modal-box {
+  width: min(560px, 100%);
+  background: var(--color-bg-surface);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+}
+
+.cust-modal-h,
+.cust-modal-f {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.cust-modal-h {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.cust-modal-h h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.cust-modal-h p {
+  margin: 0;
+}
+
+.cust-modal-b {
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cust-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cust-detail.span-2 {
+  grid-column: span 2;
+}
+
+.cust-detail span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cust-detail strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.cust-pending-amt {
+  color: #c2410c;
+}
+
+.cust-collect-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mst-page .mst-card-h {
+  flex-wrap: wrap;
+}
+
+.cust-dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.cust-dates .mst-fg {
+  margin: 0;
+  min-width: 140px;
+}
+
+.cust-dates .mst-fg label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.cust-modal-box.narrow {
+  width: min(440px, 100%);
+}
+
+.cust-modal-b .mst-fg {
+  margin: 0;
+}
+
+.cust-modal-b textarea.mst-inp {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.cust-modal-f {
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .cust-modal-b {
+    grid-template-columns: 1fr;
+  }
+
+  .cust-detail.span-2 {
+    grid-column: span 1;
+  }
+}

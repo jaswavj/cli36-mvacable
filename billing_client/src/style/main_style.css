@@ -1,0 +1,43 @@
+html {
+    font-size: 13px;
+}
+
+html, body, #root {
+    height: 100%;
+    margin: 0;
+}
+
+.header-profile {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0 0.35rem;
+}
+
+.header-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.header-user-name {
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    color: var(--color-text);
+}
+
+@media (max-width: 767.98px) {
+    .header-user-name {
+        display: none;
+    }
+}

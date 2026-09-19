@@ -1,0 +1,348 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 5mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body.a4-print-open #root,
+  .module-sidebar,
+  .app-header-shell,
+  .print-controls,
+  .a4-print-bar,
+  .no-print {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .main-layout,
+  .cash-counter-layout,
+  .module-content {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .a4-print-host {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .a4-wrap {
+    break-before: auto;
+    page-break-before: auto;
+    margin: 0 auto;
+  }
+}
+
+.a4-print-host {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: #f3f4f6;
+  overflow: auto;
+  padding: 16px 16px 32px;
+}
+
+.a4-print-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.a4-print-bar button {
+  padding: 8px 16px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.a4-print-bar .go {
+  background: #4caf50;
+  color: #fff;
+}
+
+.a4-print-bar .stop {
+  background: #f44336;
+  color: #fff;
+}
+
+.print-page {
+  background: #f3f4f6;
+  min-height: 100%;
+  padding: 12px;
+}
+
+.print-controls {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+}
+
+.print-controls button {
+  padding: 8px 16px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.print-controls .go {
+  background: #4caf50;
+  color: #fff;
+}
+
+.print-controls .stop {
+  background: #f44336;
+  color: #fff;
+}
+
+/* ===== A4 invoice ===== */
+.a4-wrap {
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #000;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+}
+
+.a4-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+  color: #2c3e50;
+}
+
+.a4-box {
+  border: 2px solid #2c3e50;
+}
+
+.a4-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px;
+  border-bottom: 2px solid #2c3e50;
+  background: #f8f9fa;
+}
+
+.a4-header img {
+  max-width: 160px;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+.a4-co {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.a4-co-name {
+  font-size: 22px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.a4-split {
+  display: flex;
+  border-bottom: 2px solid #2c3e50;
+}
+
+.a4-half {
+  width: 50%;
+}
+
+.a4-half + .a4-half {
+  border-left: 2px solid #2c3e50;
+}
+
+.a4-h {
+  background: #e9ecef;
+  padding: 6px 10px;
+  font-weight: 700;
+  border-bottom: 1px solid #2c3e50;
+}
+
+.a4-body {
+  padding: 10px;
+  min-height: 50px;
+  line-height: 1.6;
+}
+
+.a4-right {
+  text-align: right;
+}
+
+.a4-items {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-items th {
+  background: #e9ecef;
+  border: 1px solid #000;
+  padding: 4px 2px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.a4-items td {
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  padding: 3px 4px;
+}
+
+.a4-items tfoot td {
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  font-weight: 700;
+}
+
+.a4-empty td {
+  height: 25px;
+}
+
+.a4-taxrow {
+  display: flex;
+  border-bottom: 1px solid #2c3e50;
+}
+
+.a4-tax,
+.a4-amt {
+  width: 50%;
+}
+
+.a4-tax {
+  border-right: 1px solid #2c3e50;
+}
+
+.a4-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.a4-line.total {
+  font-weight: 700;
+  font-size: 13px;
+  background: #e8ebf0;
+}
+
+.a4-pay {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4-pay th,
+.a4-pay td {
+  border: 1px solid #ccc;
+  padding: 3px 8px;
+}
+
+.a4-pay th {
+  background: #e9ecef;
+}
+
+.a4-words {
+  padding: 8px;
+  text-align: center;
+  font-weight: 700;
+  border-top: 1px solid #2c3e50;
+  border-bottom: 1px solid #2c3e50;
+}
+
+.a4-foot {
+  display: flex;
+}
+
+.a4-foot > div {
+  width: 50%;
+}
+
+.a4-foot > div + div {
+  border-left: 1px solid #2c3e50;
+}
+
+.a4-terms {
+  min-height: 80px;
+  padding: 8px;
+}
+
+.a4-bank {
+  padding: 8px;
+  line-height: 1.6;
+}
+
+.a4-brand {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 6px;
+  opacity: 0.55;
+  font-size: 8.5px;
+}
+
+/* ===== Thermal receipt ===== */
+.th-wrap {
+  width: 80mm;
+  margin: 0 auto;
+  background: #fff;
+  padding: 5mm;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: #000;
+}
+
+.th-center { text-align: center; }
+.th-name { font-size: 16px; font-weight: 700; }
+.th-small { font-size: 9px; }
+.th-bold { font-weight: 700; }
+.th-row { display: flex; justify-content: space-between; margin: 1px 0; }
+.th-dash { border-top: 1px dashed #000; margin: 3px 0; }
+.th-solid { border-top: 2px solid #000; margin: 3px 0; }
+.th-item { margin: 2px 0; border-bottom: 1px dotted #999; padding-bottom: 2px; }
+.th-grand {
+  font-size: 13px;
+  font-weight: 700;
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  padding: 3px 0;
+  margin: 3px 0;
+}
+
+@page thermalpage {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  .print-page { background: #fff; padding: 0; }
+  .a4-wrap { box-shadow: none; }
+}
