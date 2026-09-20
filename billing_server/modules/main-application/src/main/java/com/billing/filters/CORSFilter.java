@@ -33,7 +33,9 @@ public class CORSFilter implements Filter {
         String originHeader = request.getHeader("Origin");
         List<String> allowOrigin = corsProperties.getAllowedOrigins();
         boolean isAllowed = originHeader != null && (
-                (allowOrigin != null && allowOrigin.contains(originHeader)) || isLocalNetworkOrigin(originHeader)
+                isSameOrigin(request, originHeader)
+                        || (allowOrigin != null && allowOrigin.contains(originHeader))
+                        || isLocalNetworkOrigin(originHeader)
         );
 
         if (originHeader != null && !isAllowed) {
@@ -58,6 +60,20 @@ public class CORSFilter implements Filter {
         }
 
         chain.doFilter(req, res);
+    }
+
+    private boolean isSameOrigin(HttpServletRequest request, String origin) {
+        if (origin == null || origin.isBlank()) {
+            return false;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(origin);
+            String originHost = uri.getHost();
+            String requestHost = request.getServerName();
+            return originHost != null && requestHost != null && originHost.equalsIgnoreCase(requestHost);
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private boolean isLocalNetworkOrigin(String origin) {
