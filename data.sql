@@ -39,12 +39,9 @@ CREATE TABLE `cable_collection_logs` (
   `log_time` time DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_cable_collection_log` (`shop_id`,`log_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_collection_logs` */
-
-insert  into `cable_collection_logs`(`id`,`collection_id`,`action`,`customer_id`,`collection_month`,`old_amount`,`new_amount`,`old_pay_mode`,`new_pay_mode`,`old_paid_date`,`new_paid_date`,`reason`,`uid`,`shop_id`,`log_date`,`log_time`) values 
-(1,15,'edit','c02','2026-09-01',300.00,300.00,'cash','upi','2026-09-19','2026-09-19','d',1,'S01','2026-09-19','12:39:50');
 
 /*Table structure for table `cable_collections` */
 
@@ -66,26 +63,9 @@ CREATE TABLE `cable_collections` (
   `is_cancelled` tinyint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `idx_cable_collection_month` (`shop_id`,`customer_pk`,`collection_month`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_collections` */
-
-insert  into `cable_collections`(`id`,`customer_pk`,`customer_id`,`collection_month`,`amount`,`due_amount`,`pay_mode`,`paid_date`,`paid_time`,`uid`,`shop_id`,`notes`,`is_cancelled`) values 
-(1,1,'C01','2026-07-01',250.00,450.00,'cash','2026-09-19','11:43:03',1,'S01',NULL,0),
-(2,1,'C01','2026-07-01',100.00,450.00,'upi','2026-09-19','11:45:06',1,'S01',NULL,0),
-(3,1,'C01','2026-07-01',100.00,450.00,'cash','2026-09-19','11:49:08',1,'S01',NULL,0),
-(4,1,'C01','2026-08-01',450.00,450.00,'cash','2026-09-19','11:49:11',1,'S01',NULL,0),
-(5,1,'C01','2026-09-01',100.00,450.00,'cash','2026-09-19','11:55:46',1,'S01',NULL,0),
-(6,1,'C01','2026-09-01',50.00,450.00,'cash','2026-09-19','11:58:58',1,'S01',NULL,0),
-(7,2,'w01','2026-09-01',1500.00,1500.00,'cash','2026-09-19','12:05:53',1,'S01',NULL,0),
-(8,1,'C01','2026-09-01',100.00,450.00,'cash','2026-09-19','12:07:26',1,'S01',NULL,0),
-(9,1,'C01','2026-09-01',100.00,450.00,'cash','2026-09-19','12:07:45',1,'S01',NULL,0),
-(10,3,'c02','2026-05-01',250.00,250.00,'cash','2026-09-19','12:17:48',1,'S01',NULL,0),
-(11,1,'C01','2026-09-01',100.00,450.00,'cash','2026-09-19','12:26:50',1,'S01',NULL,0),
-(12,3,'c02','2026-06-01',300.00,300.00,'cash','2026-09-19','12:27:44',1,'S01',NULL,0),
-(13,3,'c02','2026-07-01',300.00,300.00,'upi','2026-09-19','12:27:46',1,'S01',NULL,0),
-(14,3,'c02','2026-08-01',300.00,300.00,'upi','2026-09-19','12:28:08',1,'S01',NULL,0),
-(15,3,'c02','2026-09-01',300.00,300.00,'upi','2026-09-19','12:28:14',1,'S01',NULL,0);
 
 /*Table structure for table `cable_customers` */
 
@@ -112,15 +92,9 @@ CREATE TABLE `cable_customers` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cable_customer_shop` (`shop_id`,`customer_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_customers` */
-
-insert  into `cable_customers`(`id`,`customer_type`,`customer_id`,`name`,`mobile`,`address`,`area`,`joining_date`,`notes`,`monthly_amount`,`is_active`,`disconnect_date`,`disconnect_notes`,`reconnect_date`,`reconnect_notes`,`uid`,`shop_id`,`created_at`) values 
-(1,'cable','C01','Jaswa','9597451419','joseph\nthi\nbho\nkk\nTamilnadu','boo','2026-07-01','ssss',450.00,1,'2026-09-19','ss','2026-09-19','a',1,'S01','2026-09-19 11:02:12'),
-(2,'wifi','w01','jebs','8667214152','19-120 Joseph Colony\nThittuvilai, Boothapandi','nag','2026-09-19','s',1500.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-19 11:04:30'),
-(3,'cable','c02','New','8667214152','','','2026-05-01','s',300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-19 12:16:55'),
-(4,'wifi','w02','new','98989999','s','','2026-09-19','',800.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-19 12:49:37');
 
 /*Table structure for table `company_details` */
 
@@ -248,14 +222,9 @@ CREATE TABLE `salon_expenses` (
   `exp_date` date DEFAULT NULL,
   `exp_time` time DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `salon_expenses` */
-
-insert  into `salon_expenses`(`id`,`amount`,`expense_for`,`shop_id`,`uid`,`exp_date`,`exp_time`) values 
-(1,10.00,'Tea','S01',1,'2026-09-11','22:07:06'),
-(2,20.00,'rent','S01',28,'2026-09-11','22:11:17'),
-(3,150.00,'petrol','S01',1,'2026-09-19','12:31:15');
 
 /*Table structure for table `special_permission` */
 
@@ -434,9 +403,7 @@ CREATE TABLE `users` (
 /*Data for the table `users` */
 
 insert  into `users`(`id`,`user_name`,`password`,`is_active`,`fullName`,`disc_per`,`shop_id`,`is_admin`) values 
-(1,'admin','aecbf9a63cec1e93327dfc212f31acdb31c4f5d10bedccf8fbb8b042a6f0f39155797bdd04517905ae5d98b69fdc452cdb61b018e10939740ec96f36e133d639',1,'admin',50,'S01',1),
-(28,'admin1','aecbf9a63cec1e93327dfc212f31acdb31c4f5d10bedccf8fbb8b042a6f0f39155797bdd04517905ae5d98b69fdc452cdb61b018e10939740ec96f36e133d639',1,'admin1',100,'S01',0),
-(29,'admin2','aecbf9a63cec1e93327dfc212f31acdb31c4f5d10bedccf8fbb8b042a6f0f39155797bdd04517905ae5d98b69fdc452cdb61b018e10939740ec96f36e133d639',1,'admin2',100,'S02',0);
+(1,'admin','aecbf9a63cec1e93327dfc212f31acdb31c4f5d10bedccf8fbb8b042a6f0f39155797bdd04517905ae5d98b69fdc452cdb61b018e10939740ec96f36e133d639',1,'admin',50,'S01',1);
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
