@@ -26,6 +26,13 @@ export type CableCustomer = {
   shopId?: string;
 };
 
+export type PagedCustomers = {
+  rows?: CableCustomer[];
+  total?: number;
+  page?: number;
+  size?: number;
+};
+
 export type CableCustomerSavePayload = {
   id?: number;
   customerType: CustomerType;
@@ -42,25 +49,47 @@ export type CableCustomerSavePayload = {
 export class CustomerApiService {
   private http = new HttpClientWrapper();
 
-  list = (type?: CustomerType | '', activeOnly = false) => {
+  list = (query: {
+    type?: CustomerType | '';
+    activeOnly?: boolean;
+    search?: string;
+    page?: number;
+    size?: number;
+  } = {}) => {
     const params = new URLSearchParams();
-    if (type) params.set('type', type);
-    if (activeOnly) params.set('activeOnly', 'true');
-    const query = params.toString();
-    return this.http.get(`/v1/cable-customers${query ? `?${query}` : ''}`);
+    if (query.type) params.set('type', query.type);
+    if (query.activeOnly) params.set('activeOnly', 'true');
+    if (query.search?.trim()) params.set('search', query.search.trim());
+    params.set('page', String(query.page || 1));
+    params.set('size', String(query.size || 25));
+    return this.http.get(`/v1/cable-customers?${params}`);
   };
 
   save = (payload: CableCustomerSavePayload) => this.http.post('/v1/cable-customers', payload);
 
-  connections = (from: string, to: string, type?: CustomerType | '') => {
+  connections = (
+    from: string,
+    to: string,
+    query: { type?: CustomerType | ''; search?: string; page?: number; size?: number } = {}
+  ) => {
     const params = new URLSearchParams({ from, to });
-    if (type) params.set('type', type);
+    if (query.type) params.set('type', query.type);
+    if (query.search?.trim()) params.set('search', query.search.trim());
+    params.set('page', String(query.page || 1));
+    params.set('size', String(query.size || 25));
     return this.http.get(`/v1/cable-customers/connections?${params}`);
   };
 
-  disconnections = (from: string, to: string, type?: CustomerType | '') => {
+  disconnections = (
+    from: string,
+    to: string,
+    query: { type?: CustomerType | ''; search?: string; page?: number; size?: number } = {}
+  ) => {
     const params = new URLSearchParams({ from, to });
-    if (type) params.set('type', type);
+    if (query.type) params.set('type', query.type);
+    if (query.search?.trim()) params.set('search', query.search.trim());
+    params.set('page', String(query.page || 1));
+    params.set('size', String(query.size || 25));
     return this.http.get(`/v1/cable-customers/disconnections?${params}`);
   };
 

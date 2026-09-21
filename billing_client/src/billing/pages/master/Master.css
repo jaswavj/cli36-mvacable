@@ -361,6 +361,37 @@
   color: var(--color-primary);
 }
 
+.mst-pagebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.mst-pagebar-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mst-pagebar-acts em {
+  font-style: normal;
+  color: var(--color-text);
+  min-width: 48px;
+  text-align: center;
+}
+
+.mst-pagebar .mst-btn {
+  height: 30px;
+  padding: 0 10px;
+}
+
 .trp-table {
   min-width: 560px;
 }

@@ -8,6 +8,7 @@ import {
   type CollectionReportRow,
   type PayMode,
 } from '../../../api/collection/collection-api-service';
+import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import '../customer/Customer.css';
 import '../collection/Collection.css';
@@ -30,6 +31,7 @@ const AdminCollectionsPage: React.FC = () => {
   const [to, setTo] = useState(today);
   const [data, setData] = useState<CollectionReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<CollectionReportRow | null>(null);
   const [cancelling, setCancelling] = useState<CollectionReportRow | null>(null);
   const [amount, setAmount] = useState('');
@@ -37,14 +39,15 @@ const AdminCollectionsPage: React.FC = () => {
   const [paidDate, setPaidDate] = useState(today);
   const [reason, setReason] = useState('');
 
-  const search = async () => {
+  const search = async (nextPage = 1) => {
     if (!from || !to) {
       toast.warning('Select from and to date');
       return;
     }
     setBusy(true);
     try {
-      setData(collectionData<CollectionReport>(await collectionApi.report(from, to)));
+      setPage(nextPage);
+      setData(collectionData<CollectionReport>(await collectionApi.report(from, to, undefined, undefined, undefined, nextPage, PAGE_SIZE)));
     } catch (err) {
       toast.error(collectionError(err, 'Could not load collections'));
     } finally {
@@ -92,7 +95,7 @@ const AdminCollectionsPage: React.FC = () => {
       });
       toast.success('Collection updated');
       setEditing(null);
-      await search();
+      await search(page);
     } catch (err) {
       toast.error(collectionError(err, 'Could not update collection'));
     } finally {
@@ -111,7 +114,7 @@ const AdminCollectionsPage: React.FC = () => {
       await collectionApi.cancel(cancelling.id, reason.trim());
       toast.success('Collection cancelled');
       setCancelling(null);
-      await search();
+      await search(page);
     } catch (err) {
       toast.error(collectionError(err, 'Could not cancel collection'));
     } finally {
@@ -230,6 +233,7 @@ const AdminCollectionsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <PageBar page={page} total={data.count || 0} onPage={(next) => search(next)} />
         </div>
       )}
 

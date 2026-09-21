@@ -7,7 +7,9 @@ import {
   customerError,
   type CableCustomer,
   type CustomerType,
+  type PagedCustomers,
 } from '../../../api/customer/customer-api-service';
+import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import './Customer.css';
 
@@ -31,22 +33,30 @@ const show = (v?: string) => (v && v.trim() ? v : '—');
 const AddCustomerPage: React.FC = () => {
   const location = useLocation();
   const [rows, setRows] = useState<CableCustomer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(empty);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<CustomerType | ''>('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (nextPage = page, nextSearch = search, nextType = typeFilter) => {
     try {
-      setRows(customerData<CableCustomer[]>(await customerApi.list()) || []);
+      const data = customerData<PagedCustomers>(
+        await customerApi.list({ type: nextType, search: nextSearch, page: nextPage, size: PAGE_SIZE })
+      );
+      setRows(data.rows || []);
+      setTotal(data.total || 0);
     } catch (err) {
       toast.error(customerError(err, 'Could not load customers'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    const timer = setTimeout(() => refresh(page, search, typeFilter), search ? 300 : 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, typeFilter]);
 
   const reset = () => setForm({ ...empty, joiningDate: today() });
 
@@ -88,7 +98,8 @@ const AddCustomerPage: React.FC = () => {
       });
       toast.success(form.id ? 'Customer updated' : 'Customer added');
       reset();
-      await refresh();
+      await refresh(1, search, typeFilter);
+      setPage(1);
     } catch (err) {
       toast.error(customerError(err, 'Save failed'));
     } finally {
@@ -116,15 +127,15 @@ const AddCustomerPage: React.FC = () => {
     if (customer) editRow(customer);
   }, [location.state]);
 
-  const filtered = rows.filter((r) => {
-    if (typeFilter && r.customerType !== typeFilter) return false;
-    const q = search.toLowerCase();
-    if (!q) return true;
-    return [r.customerId, r.name, r.mobile, r.address, r.area, r.customerType]
-      .join(' ')
-      .toLowerCase()
-      .includes(q);
-  });
+  const setSearchValue = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const setType = (type: CustomerType | '') => {
+    setTypeFilter(type);
+    setPage(1);
+  };
 
   return (
     <div className="mst-page">
@@ -271,7 +282,7 @@ const AddCustomerPage: React.FC = () => {
           <div className="mst-card-h">
             <span className="trp-list-title">
               <i className="fas fa-list" /> Customers
-              <em className="trp-count">{filtered.length}</em>
+              <em className="trp-count">{total}</em>
             </span>
             <div className="cust-filters">
               {(['', 'cable', 'wifi'] as const).map((type) => (
@@ -279,7 +290,7 @@ const AddCustomerPage: React.FC = () => {
                   key={type || 'all'}
                   type="button"
                   className={`cust-filter${typeFilter === type ? ' on' : ''}`}
-                  onClick={() => setTypeFilter(type)}
+                  onClick={() => setType(type)}
                 >
                   {type === '' ? 'All' : type === 'cable' ? 'Cable' : 'WiFi'}
                 </button>
@@ -291,7 +302,7 @@ const AddCustomerPage: React.FC = () => {
                 className="mst-inp"
                 placeholder="Search ID, name, mobile, area..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => setSearchValue(e.target.value)}
               />
             </div>
           </div>
@@ -310,7 +321,7 @@ const AddCustomerPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
                     <td colSpan={8} className="mst-empty">
                       <i className="fas fa-users" />
@@ -318,13 +329,13 @@ const AddCustomerPage: React.FC = () => {
                     </td>
                   </tr>
                 )}
-                {filtered.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr
                     key={row.id}
                     className={`mst-click-row${form.id === row.id ? ' trp-row-on' : ''}`}
                     onClick={() => editRow(row)}
                   >
-                    <td>{i + 1}</td>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td>
                       <span className={`cust-type-pill ${row.customerType}`}>
                         <i className={row.customerType === 'wifi' ? 'fas fa-wifi' : 'fas fa-tv'} />
@@ -359,6 +370,7 @@ const AddCustomerPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <PageBar page={page} total={total} onPage={setPage} />
         </div>
       </div>
     </div>

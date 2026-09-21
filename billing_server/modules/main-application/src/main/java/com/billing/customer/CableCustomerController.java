@@ -26,27 +26,36 @@ public class CableCustomerController {
     @GetMapping
     public ResponseDO list(
             @RequestParam(required = false) String type,
-            @RequestParam(required = false, defaultValue = "false") boolean activeOnly
+            @RequestParam(required = false, defaultValue = "false") boolean activeOnly,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
-        return ok(cableCustomerService.list(currentUser(), type, activeOnly));
+        return ok(cableCustomerService.page(currentUser(), type, activeOnly, search, page, size));
     }
 
     @GetMapping("/connections")
     public ResponseDO connections(
             @RequestParam String from,
             @RequestParam String to,
-            @RequestParam(required = false) String type
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
-        return ok(cableCustomerService.connections(currentUser(), from, to, type));
+        return ok(cableCustomerService.connections(currentUser(), from, to, type, search, page, size));
     }
 
     @GetMapping("/disconnections")
     public ResponseDO disconnections(
             @RequestParam String from,
             @RequestParam String to,
-            @RequestParam(required = false) String type
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
-        return ok(cableCustomerService.disconnections(currentUser(), from, to, type));
+        return ok(cableCustomerService.disconnections(currentUser(), from, to, type, search, page, size));
     }
 
     @PostMapping

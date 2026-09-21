@@ -30,8 +30,13 @@ public class CollectionController {
     }
 
     @GetMapping("/pending-customers")
-    public ResponseDO pendingCustomers() {
-        return ok(collectionService.pendingCustomers(currentUser()));
+    public ResponseDO pendingCustomers(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        return ok(collectionService.pendingCustomersPage(currentUser(), type, search, page, size));
     }
 
     @GetMapping("/report")
@@ -40,9 +45,11 @@ public class CollectionController {
             @RequestParam String to,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String payMode,
-            @RequestParam(required = false) String customerType
+            @RequestParam(required = false) String customerType,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
-        return ok(collectionService.report(from, to, userId, payMode, customerType, currentUser()));
+        return ok(collectionService.report(from, to, userId, payMode, customerType, page, size, currentUser()));
     }
 
     @GetMapping("/account")

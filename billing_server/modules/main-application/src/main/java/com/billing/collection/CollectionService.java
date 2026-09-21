@@ -17,6 +17,7 @@ import com.billing.collection.dto.DashboardData;
 import com.billing.collection.dto.DashboardDay;
 import com.billing.customer.CableCustomerService;
 import com.billing.customer.dto.CableCustomerRow;
+import com.billing.customer.dto.PagedResult;
 import com.billing.data.AppUser;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -290,8 +291,38 @@ public class CollectionService {
         return pending;
     }
 
+    public PagedResult<PendingCustomerRow> pendingCustomersPage(AppUser user, String customerType, String search,
+                                                                Integer page, Integer size) {
+        String type = customerType == null ? "" : customerType.trim().toLowerCase();
+        String q = search == null ? "" : search.trim().toLowerCase();
+        List<PendingCustomerRow> filtered = new ArrayList<>();
+        for (PendingCustomerRow row : pendingCustomers(user)) {
+            if (!type.isEmpty() && !type.equalsIgnoreCase(row.getCustomerType() == null ? "" : row.getCustomerType())) {
+                continue;
+            }
+            if (!q.isEmpty()) {
+                String hay = (nzStr(row.getCustomerId()) + " " + nzStr(row.getName()) + " " +
+                        nzStr(row.getMobile()) + " " + nzStr(row.getArea())).toLowerCase();
+                if (!hay.contains(q)) {
+                    continue;
+                }
+            }
+            filtered.add(row);
+        }
+        return PagedResult.of(filtered, page, size);
+    }
+
+    private String nzStr(String value) {
+        return value == null ? "" : value;
+    }
+
     public CollectionReportData report(String from, String to, Long userId, String payMode, String customerType,
                                        AppUser user) {
+        return report(from, to, userId, payMode, customerType, null, null, user);
+    }
+
+    public CollectionReportData report(String from, String to, Long userId, String payMode, String customerType,
+                                       Integer page, Integer size, AppUser user) {
         if (user == null || user.getId() == null) {
             throw new RuntimeException("Please login again");
         }
@@ -339,7 +370,38 @@ public class CollectionService {
             sql.append(" AND LOWER(IFNULL(cu.customer_type,'')) = ?");
             args.add(type);
         }
-        sql.append(" ORDER BY c.paid_date DESC, c.id DESC");
+        boolean paged = page != null;
+        int p = PagedResult.pageOf(page);
+        int s = PagedResult.sizeOf(size);
+        CollectionReportData data = new CollectionReportData();
+        if (paged) {
+            String totalsSql =
+                    "SELECT COUNT(*) AS cnt, COALESCE(SUM(c.amount),0) AS total, " +
+                            "SUM(CASE WHEN LOWER(c.pay_mode) = 'upi' THEN c.amount ELSE 0 END) AS upi, " +
+                            "SUM(CASE WHEN LOWER(c.pay_mode) <> 'upi' THEN c.amount ELSE 0 END) AS cash, " +
+                            "SUM(CASE WHEN LOWER(IFNULL(cu.customer_type,'')) = 'wifi' THEN c.amount ELSE 0 END) AS wifi, " +
+                            "SUM(CASE WHEN LOWER(IFNULL(cu.customer_type,'')) <> 'wifi' THEN c.amount ELSE 0 END) AS cable " +
+                            sql.substring(sql.indexOf("FROM"));
+            jdbcTemplate.query(totalsSql, rs -> {
+                if (!rs.next()) {
+                    return null;
+                }
+                data.setCount(rs.getInt("cnt"));
+                data.setTotalAmount(round2(rs.getDouble("total")));
+                data.setUpiTotal(round2(rs.getDouble("upi")));
+                data.setCashTotal(round2(rs.getDouble("cash")));
+                data.setWifiTotal(round2(rs.getDouble("wifi")));
+                data.setCableTotal(round2(rs.getDouble("cable")));
+                return null;
+            }, args.toArray());
+            sql.append(" ORDER BY c.paid_date DESC, c.id DESC LIMIT ? OFFSET ?");
+            args.add(s);
+            args.add((p - 1) * s);
+            data.setPage(p);
+            data.setSize(s);
+        } else {
+            sql.append(" ORDER BY c.paid_date DESC, c.id DESC");
+        }
         List<CollectionReportRow> rows = jdbcTemplate.query(sql.toString(), (rs, i) -> {
             CollectionReportRow row = new CollectionReportRow();
             row.setId(rs.getLong("id"));
@@ -356,33 +418,34 @@ public class CollectionService {
             row.setCollectedBy(rs.getString("collectedBy"));
             return row;
         }, args.toArray());
-        double total = 0;
-        double cash = 0;
-        double upi = 0;
-        double cable = 0;
-        double wifi = 0;
-        for (CollectionReportRow row : rows) {
-            double amount = nz(row.getAmount());
-            total += amount;
-            if ("upi".equalsIgnoreCase(row.getPayMode())) {
-                upi += amount;
-            } else {
-                cash += amount;
-            }
-            if ("wifi".equalsIgnoreCase(row.getCustomerType())) {
-                wifi += amount;
-            } else {
-                cable += amount;
-            }
-        }
-        CollectionReportData data = new CollectionReportData();
         data.setRows(rows);
-        data.setCount(rows.size());
-        data.setTotalAmount(round2(total));
-        data.setCashTotal(round2(cash));
-        data.setUpiTotal(round2(upi));
-        data.setCableTotal(round2(cable));
-        data.setWifiTotal(round2(wifi));
+        if (!paged) {
+            double total = 0;
+            double cash = 0;
+            double upi = 0;
+            double cable = 0;
+            double wifi = 0;
+            for (CollectionReportRow row : rows) {
+                double amount = nz(row.getAmount());
+                total += amount;
+                if ("upi".equalsIgnoreCase(row.getPayMode())) {
+                    upi += amount;
+                } else {
+                    cash += amount;
+                }
+                if ("wifi".equalsIgnoreCase(row.getCustomerType())) {
+                    wifi += amount;
+                } else {
+                    cable += amount;
+                }
+            }
+            data.setCount(rows.size());
+            data.setTotalAmount(round2(total));
+            data.setCashTotal(round2(cash));
+            data.setUpiTotal(round2(upi));
+            data.setCableTotal(round2(cable));
+            data.setWifiTotal(round2(wifi));
+        }
         return data;
     }
 

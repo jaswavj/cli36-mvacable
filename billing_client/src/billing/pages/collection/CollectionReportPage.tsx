@@ -10,6 +10,7 @@ import {
   type CollectionReportRow,
 } from '../../../api/collection/collection-api-service';
 import { usersApi, usersData } from '../../../api/users/users-api-service';
+import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import '../customer/Customer.css';
@@ -39,6 +40,7 @@ const CollectionReportPage: React.FC = () => {
   const [data, setData] = useState<CollectionReport | null>(null);
   const [account, setAccount] = useState<AccountReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     usersApi
@@ -47,13 +49,14 @@ const CollectionReportPage: React.FC = () => {
       .catch(() => undefined);
   }, []);
 
-  const searchCollection = async () => {
+  const searchCollection = async (nextPage = 1) => {
     if (!from || !to) {
       toast.warning('Select from and to date');
       return;
     }
     setBusy(true);
     try {
+      setPage(nextPage);
       setData(
         collectionData<CollectionReport>(
           await collectionApi.report(
@@ -61,7 +64,9 @@ const CollectionReportPage: React.FC = () => {
             to,
             userId ? Number(userId) : undefined,
             payMode || undefined,
-            customerType || undefined
+            customerType || undefined,
+            nextPage,
+            PAGE_SIZE
           )
         )
       );
@@ -282,6 +287,7 @@ const CollectionReportPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <PageBar page={page} total={data.count || 0} onPage={(next) => searchCollection(next)} />
           </div>
         </>
       )}

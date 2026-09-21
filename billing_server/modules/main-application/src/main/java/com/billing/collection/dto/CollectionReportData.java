@@ -9,6 +9,8 @@ import java.util.List;
 public class CollectionReportData {
     private List<CollectionReportRow> rows = new ArrayList<>();
     private Integer count;
+    private Integer page;
+    private Integer size;
     private Double totalAmount;
     private Double cashTotal;
     private Double upiTotal;

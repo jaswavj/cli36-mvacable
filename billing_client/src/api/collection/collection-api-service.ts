@@ -115,9 +115,18 @@ export type AccountReport = {
   expenses?: AccountExpense[];
 };
 
+export type PendingList = {
+  rows?: PendingCustomer[];
+  total?: number;
+  page?: number;
+  size?: number;
+};
+
 export type CollectionReport = {
   rows: CollectionReportRow[];
   count?: number;
+  page?: number;
+  size?: number;
   totalAmount?: number;
   cashTotal?: number;
   upiTotal?: number;
@@ -142,13 +151,30 @@ export class CollectionApiService {
 
   posPrint = (id: number) => this.http.post(`/v1/cable-collections/print/${id}/pos`, {});
 
-  pendingCustomers = () => this.http.get('/v1/cable-collections/pending-customers');
+  pendingCustomers = (query: { type?: string; search?: string; page?: number; size?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (query.type) params.set('type', query.type);
+    if (query.search?.trim()) params.set('search', query.search.trim());
+    params.set('page', String(query.page || 1));
+    params.set('size', String(query.size || 25));
+    return this.http.get(`/v1/cable-collections/pending-customers?${params}`);
+  };
 
-  report = (from: string, to: string, userId?: number, payMode?: string, customerType?: string) => {
+  report = (
+    from: string,
+    to: string,
+    userId?: number,
+    payMode?: string,
+    customerType?: string,
+    page?: number,
+    size?: number
+  ) => {
     const params = new URLSearchParams({ from, to });
     if (userId) params.set('userId', String(userId));
     if (payMode) params.set('payMode', payMode);
     if (customerType) params.set('customerType', customerType);
+    if (page) params.set('page', String(page));
+    if (size) params.set('size', String(size));
     return this.http.get(`/v1/cable-collections/report?${params}`);
   };
 

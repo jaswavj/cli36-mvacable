@@ -4,6 +4,7 @@ import com.billing.customer.dto.CableCustomerDisconnectRequest;
 import com.billing.customer.dto.CableCustomerReconnectRequest;
 import com.billing.customer.dto.CableCustomerRow;
 import com.billing.customer.dto.CableCustomerSaveRequest;
+import com.billing.customer.dto.PagedResult;
 import com.billing.data.AppUser;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -95,49 +96,108 @@ public class CableCustomerService {
     }
 
     public List<CableCustomerRow> list(AppUser user, String customerType, boolean activeOnly) {
+        return page(user, customerType, activeOnly, null, 1, Integer.MAX_VALUE).getRows();
+    }
+
+    public PagedResult<CableCustomerRow> page(AppUser user, String customerType, boolean activeOnly,
+                                              String search, Integer page, Integer size) {
         requireUser(user);
-        String shopId = user.shopId();
-        String sql = SELECT_ROWS + " WHERE c.shop_id = ?";
+        int p = PagedResult.pageOf(page);
+        int s = size != null && size == Integer.MAX_VALUE ? Integer.MAX_VALUE : PagedResult.sizeOf(size);
+        StringBuilder where = new StringBuilder(" WHERE c.shop_id = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(user.shopId());
         if (activeOnly) {
-            sql += " AND IFNULL(c.is_active, 1) = 1";
+            where.append(" AND IFNULL(c.is_active, 1) = 1");
         }
-        if (customerType != null && !customerType.isBlank()) {
-            String type = typeOf(customerType);
-            return jdbcTemplate.query(sql + " AND c.customer_type = ? ORDER BY c.name, c.id", this::mapRow, shopId, type);
-        }
-        return jdbcTemplate.query(sql + " ORDER BY c.name, c.id", this::mapRow, shopId);
+        appendType(where, args, customerType);
+        appendSearch(where, args, search);
+        return queryPage(SELECT_ROWS + where + " ORDER BY c.name, c.id", where.toString(), args, p, s);
     }
 
-    public List<CableCustomerRow> connections(AppUser user, String from, String to, String customerType) {
-        return listByDate(user, from, to, customerType, false);
+    public PagedResult<CableCustomerRow> connections(AppUser user, String from, String to, String customerType,
+                                                     String search, Integer page, Integer size) {
+        return pageByDate(user, from, to, customerType, search, page, size, false);
     }
 
-    public List<CableCustomerRow> disconnections(AppUser user, String from, String to, String customerType) {
-        return listByDate(user, from, to, customerType, true);
+    public PagedResult<CableCustomerRow> disconnections(AppUser user, String from, String to, String customerType,
+                                                        String search, Integer page, Integer size) {
+        return pageByDate(user, from, to, customerType, search, page, size, true);
     }
 
-    private List<CableCustomerRow> listByDate(AppUser user, String from, String to, String customerType,
-                                             boolean disconnected) {
+    private PagedResult<CableCustomerRow> pageByDate(AppUser user, String from, String to, String customerType,
+                                                     String search, Integer page, Integer size, boolean disconnected) {
         requireUser(user);
         Date fromDate = parseDate(from, "From date");
         Date toDate = parseDate(to, "To date");
         if (toDate.toLocalDate().isBefore(fromDate.toLocalDate())) {
             throw new RuntimeException("To date cannot be before from date");
         }
+        int p = PagedResult.pageOf(page);
+        int s = PagedResult.sizeOf(size);
         String column = disconnected ? "c.disconnect_date" : "c.joining_date";
-        String sql = SELECT_ROWS + " WHERE c.shop_id = ? AND " + column + " BETWEEN ? AND ?";
+        StringBuilder where = new StringBuilder(" WHERE c.shop_id = ? AND " + column + " BETWEEN ? AND ?");
         List<Object> args = new ArrayList<>();
         args.add(user.shopId());
         args.add(fromDate);
         args.add(toDate);
         if (disconnected) {
-            sql += " AND IFNULL(c.is_active, 1) = 0";
+            where.append(" AND IFNULL(c.is_active, 1) = 0");
         }
-        if (customerType != null && !customerType.isBlank()) {
-            sql += " AND c.customer_type = ?";
-            args.add(typeOf(customerType));
+        appendType(where, args, customerType);
+        appendSearch(where, args, search);
+        return queryPage(
+                SELECT_ROWS + where + " ORDER BY " + column + " DESC, c.name, c.id",
+                where.toString(),
+                args,
+                p,
+                s
+        );
+    }
+
+    private PagedResult<CableCustomerRow> queryPage(String dataSql, String whereSql, List<Object> args, int page, int size) {
+        Long total = jdbcTemplate.query(
+                "SELECT COUNT(*) FROM cable_customers c" + whereSql,
+                rs -> rs.next() ? rs.getLong(1) : 0L,
+                args.toArray()
+        );
+        long count = total == null ? 0 : total;
+        PagedResult<CableCustomerRow> result = new PagedResult<>();
+        result.setTotal(count);
+        result.setPage(page);
+        result.setSize(size == Integer.MAX_VALUE ? (int) Math.min(count, Integer.MAX_VALUE) : size);
+        if (count == 0) {
+            return result;
         }
-        return jdbcTemplate.query(sql + " ORDER BY " + column + " DESC, c.name, c.id", this::mapRow, args.toArray());
+        List<Object> pageArgs = new ArrayList<>(args);
+        String sql = dataSql;
+        if (size != Integer.MAX_VALUE) {
+            sql += " LIMIT ? OFFSET ?";
+            pageArgs.add(size);
+            pageArgs.add((long) (page - 1) * size);
+        }
+        result.setRows(jdbcTemplate.query(sql, this::mapRow, pageArgs.toArray()));
+        return result;
+    }
+
+    private void appendType(StringBuilder where, List<Object> args, String customerType) {
+        if (customerType == null || customerType.isBlank()) {
+            return;
+        }
+        where.append(" AND c.customer_type = ?");
+        args.add(typeOf(customerType));
+    }
+
+    private void appendSearch(StringBuilder where, List<Object> args, String search) {
+        if (search == null || search.isBlank()) {
+            return;
+        }
+        String like = "%" + search.trim() + "%";
+        where.append(" AND (c.customer_id LIKE ? OR c.name LIKE ? OR IFNULL(c.mobile,'') LIKE ? OR IFNULL(c.area,'') LIKE ?)");
+        args.add(like);
+        args.add(like);
+        args.add(like);
+        args.add(like);
     }
 
     private CableCustomerRow findById(AppUser user, Long id) {

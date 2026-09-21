@@ -26,13 +26,16 @@ import {
   type DashboardData,
   type DashboardDay,
   type PendingCustomer,
+  type PendingList,
 } from '../../../api/collection/collection-api-service';
 import {
   customerApi,
   customerData,
   customerError,
   type CableCustomer,
+  type PagedCustomers,
 } from '../../../api/customer/customer-api-service';
+import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import '../customer/Customer.css';
@@ -91,7 +94,6 @@ const trend = (pct?: number, last?: number, vs = 'vs last month') =>
 const payLabel = (mode?: string) => (mode === 'upi' ? 'UPI' : mode === 'cash' ? 'Cash' : mode || '—');
 const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : type === 'cable' ? 'Cable' : type || '—');
 const show = (v?: string) => (v && v.trim() ? v : '—');
-const matchType = (type: string | undefined, filter: TypeFilter) => !filter || type === filter;
 
 const TypePill: React.FC<{ type?: string }> = ({ type }) => (
   <span className={`cust-type-pill ${type === 'wifi' ? 'wifi' : 'cable'}`}>{typeLabel(type)}</span>
@@ -128,6 +130,8 @@ const CollectionDashboardPage: React.FC = () => {
   const [pendingRows, setPendingRows] = useState<PendingCustomer[]>([]);
   const [customerRows, setCustomerRows] = useState<CableCustomer[]>([]);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
+  const [modalPage, setModalPage] = useState(1);
+  const [modalTotal, setModalTotal] = useState(0);
 
   const load = async (nextPeriod = period, y = year, m = month, fromDate = from, toDate = to) => {
     if (nextPeriod === 'date') {
@@ -206,48 +210,102 @@ const CollectionDashboardPage: React.FC = () => {
     setPendingRows([]);
     setCustomerRows([]);
     setTypeFilter('');
+    setModalPage(1);
+    setModalTotal(0);
     setModalBusy(false);
   };
 
-  const openModal = async (spec: ModalSpec) => {
-    setModal(spec);
+  const openModal = (spec: ModalSpec) => {
     setCollections(null);
     setAccount(null);
     setPendingRows([]);
     setCustomerRows([]);
+    setModalTotal(0);
+    setModalPage(1);
     setTypeFilter(spec.customerType === 'wifi' || spec.customerType === 'cable' ? spec.customerType : '');
-    setModalBusy(true);
-    try {
-      if (spec.kind === 'collection') {
-        setCollections(
-          collectionData<CollectionReport>(
-            await collectionApi.report(spec.from || '', spec.to || '', spec.userId, spec.payMode)
-          )
-        );
-      } else if (spec.kind === 'expense' || spec.kind === 'final') {
-        setAccount(collectionData<AccountReport>(await collectionApi.account(spec.from || '', spec.to || '')));
-      } else if (spec.kind === 'pending') {
-        setPendingRows(collectionData<PendingCustomer[]>(await collectionApi.pendingCustomers()) || []);
-      } else if (spec.customers === 'active') {
-        setCustomerRows(customerData<CableCustomer[]>(await customerApi.list('', true)) || []);
-      } else if (spec.customers === 'new') {
-        setCustomerRows(customerData<CableCustomer[]>(await customerApi.connections(spec.from || '', spec.to || '')) || []);
-      } else if (spec.customers === 'disconnect') {
-        setCustomerRows(
-          customerData<CableCustomer[]>(await customerApi.disconnections(spec.from || '', spec.to || '')) || []
-        );
-      }
-    } catch (err) {
-      toast.error(
-        spec.kind === 'customers'
-          ? customerError(err, 'Could not load details')
-          : collectionError(err, 'Could not load details')
-      );
-      closeModal();
-    } finally {
-      setModalBusy(false);
-    }
+    setModal(spec);
   };
+
+  useEffect(() => {
+    if (!modal) return;
+    let cancelled = false;
+    const run = async () => {
+      setModalBusy(true);
+      try {
+        if (modal.kind === 'collection') {
+          const next = collectionData<CollectionReport>(
+            await collectionApi.report(
+              modal.from || '',
+              modal.to || '',
+              modal.userId,
+              modal.payMode,
+              typeFilter || undefined,
+              modalPage,
+              PAGE_SIZE
+            )
+          );
+          if (cancelled) return;
+          setCollections(next);
+          setModalTotal(next.count || 0);
+        } else if (modal.kind === 'expense' || modal.kind === 'final') {
+          const next = collectionData<AccountReport>(await collectionApi.account(modal.from || '', modal.to || ''));
+          if (cancelled) return;
+          setAccount(next);
+        } else if (modal.kind === 'pending') {
+          const next = collectionData<PendingList>(
+            await collectionApi.pendingCustomers({ type: typeFilter, page: modalPage, size: PAGE_SIZE })
+          );
+          if (cancelled) return;
+          setPendingRows(next.rows || []);
+          setModalTotal(next.total || 0);
+        } else if (modal.customers === 'active') {
+          const next = customerData<PagedCustomers>(
+            await customerApi.list({ type: typeFilter, activeOnly: true, page: modalPage, size: PAGE_SIZE })
+          );
+          if (cancelled) return;
+          setCustomerRows(next.rows || []);
+          setModalTotal(next.total || 0);
+        } else if (modal.customers === 'new') {
+          const next = customerData<PagedCustomers>(
+            await customerApi.connections(modal.from || '', modal.to || '', {
+              type: typeFilter,
+              page: modalPage,
+              size: PAGE_SIZE,
+            })
+          );
+          if (cancelled) return;
+          setCustomerRows(next.rows || []);
+          setModalTotal(next.total || 0);
+        } else if (modal.customers === 'disconnect') {
+          const next = customerData<PagedCustomers>(
+            await customerApi.disconnections(modal.from || '', modal.to || '', {
+              type: typeFilter,
+              page: modalPage,
+              size: PAGE_SIZE,
+            })
+          );
+          if (cancelled) return;
+          setCustomerRows(next.rows || []);
+          setModalTotal(next.total || 0);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(
+          modal.kind === 'customers'
+            ? customerError(err, 'Could not load details')
+            : collectionError(err, 'Could not load details')
+        );
+        closeModal();
+      } finally {
+        if (!cancelled) setModalBusy(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal, modalPage, typeFilter]);
 
   const openRange = (
     kind: ModalSpec['kind'],
@@ -743,7 +801,10 @@ const CollectionDashboardPage: React.FC = () => {
                       key={type || 'all'}
                       type="button"
                       className={`cust-filter${typeFilter === type ? ' on' : ''}`}
-                      onClick={() => setTypeFilter(type)}
+                      onClick={() => {
+                        setTypeFilter(type);
+                        setModalPage(1);
+                      }}
                     >
                       {type === '' ? 'All' : type === 'cable' ? 'Cable' : 'WiFi'}
                     </button>
@@ -753,12 +814,10 @@ const CollectionDashboardPage: React.FC = () => {
               <div className="crd-modal-body col-dash-modal-b">
                 {modalBusy && <div className="mst-empty">Loading details…</div>}
                 {!modalBusy && modal.kind === 'collection' && (
-                  <CollectionRows
-                    rows={(collections?.rows || []).filter((row) => matchType(row.customerType, typeFilter))}
-                    total={(collections?.rows || [])
-                      .filter((row) => matchType(row.customerType, typeFilter))
-                      .reduce((sum, row) => sum + Number(row.amount || 0), 0)}
-                  />
+                  <>
+                    <CollectionRows rows={collections?.rows || []} total={collections?.totalAmount} />
+                    <PageBar page={modalPage} total={modalTotal} onPage={setModalPage} />
+                  </>
                 )}
                 {!modalBusy && modal.kind === 'expense' && (
                   <ExpenseRows rows={account?.expenses || []} total={account?.expenseTotal} />
@@ -783,13 +842,16 @@ const CollectionDashboardPage: React.FC = () => {
                   </>
                 )}
                 {!modalBusy && modal.kind === 'pending' && (
-                  <PendingRows rows={pendingRows.filter((row) => matchType(row.customerType, typeFilter))} />
+                  <>
+                    <PendingRows rows={pendingRows} />
+                    <PageBar page={modalPage} total={modalTotal} onPage={setModalPage} />
+                  </>
                 )}
                 {!modalBusy && modal.kind === 'customers' && (
-                  <CustomerRows
-                    rows={customerRows.filter((row) => matchType(row.customerType, typeFilter))}
-                    kind={modal.customers || 'active'}
-                  />
+                  <>
+                    <CustomerRows rows={customerRows} kind={modal.customers || 'active'} />
+                    <PageBar page={modalPage} total={modalTotal} onPage={setModalPage} />
+                  </>
                 )}
               </div>
             </div>

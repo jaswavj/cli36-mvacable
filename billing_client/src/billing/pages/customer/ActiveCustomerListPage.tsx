@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -6,6 +6,7 @@ import {
   collectionData,
   collectionError,
   type PendingCustomer,
+  type PendingList,
 } from '../../../api/collection/collection-api-service';
 import {
   customerApi,
@@ -13,8 +14,10 @@ import {
   customerError,
   type CableCustomer,
   type CustomerType,
+  type PagedCustomers,
 } from '../../../api/customer/customer-api-service';
 import { routerPathNames } from '../../../routes/routerPathNames';
+import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import './Customer.css';
 
@@ -43,13 +46,6 @@ const TypePill: React.FC<{ type?: string }> = ({ type }) => (
   </span>
 );
 
-const matchCustomer = (row: CableCustomer | PendingCustomer, search: string, typeFilter: string) => {
-  if (typeFilter && row.customerType !== typeFilter) return false;
-  const q = search.toLowerCase().trim();
-  if (!q) return true;
-  return Object.values(row).join(' ').toLowerCase().includes(q);
-};
-
 const ActiveCustomerListPage: React.FC = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<ListTab>('active');
@@ -57,6 +53,8 @@ const ActiveCustomerListPage: React.FC = () => {
   const [pendingRows, setPendingRows] = useState<PendingCustomer[]>([]);
   const [connectionRows, setConnectionRows] = useState<CableCustomer[]>([]);
   const [disconnectRows, setDisconnectRows] = useState<CableCustomer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<CustomerType | ''>('');
   const [fromDate, setFromDate] = useState(monthStartIso);
@@ -70,23 +68,33 @@ const ActiveCustomerListPage: React.FC = () => {
   const [reconnectDate, setReconnectDate] = useState(todayIso);
   const [reconnectNotes, setReconnectNotes] = useState('');
 
-  const refresh = async () => {
+  const query = { type: typeFilter, search, page, size: PAGE_SIZE };
+
+  const refresh = async (nextPage = page) => {
     try {
-      setRows(customerData<CableCustomer[]>(await customerApi.list('', true)) || []);
+      const data = customerData<PagedCustomers>(
+        await customerApi.list({ ...query, page: nextPage, activeOnly: true })
+      );
+      setRows(data.rows || []);
+      setTotal(data.total || 0);
     } catch (err) {
       toast.error(customerError(err, 'Could not load active customers'));
     }
   };
 
-  const refreshPending = async () => {
+  const refreshPending = async (nextPage = page) => {
     try {
-      setPendingRows(collectionData<PendingCustomer[]>(await collectionApi.pendingCustomers()) || []);
+      const data = collectionData<PendingList>(
+        await collectionApi.pendingCustomers({ type: typeFilter, search, page: nextPage, size: PAGE_SIZE })
+      );
+      setPendingRows(data.rows || []);
+      setTotal(data.total || 0);
     } catch (err) {
       toast.error(collectionError(err, 'Could not load pending payment customers'));
     }
   };
 
-  const refreshDated = async (nextTab = tab, from = fromDate, to = toDate) => {
+  const refreshDated = async (nextTab = tab, from = fromDate, to = toDate, nextPage = page) => {
     if (!from || !to) {
       toast.warning('Select from and to date');
       return;
@@ -96,12 +104,14 @@ const ActiveCustomerListPage: React.FC = () => {
       return;
     }
     try {
-      if (nextTab === 'connection') {
-        setConnectionRows(customerData<CableCustomer[]>(await customerApi.connections(from, to)) || []);
-      }
-      if (nextTab === 'disconnection') {
-        setDisconnectRows(customerData<CableCustomer[]>(await customerApi.disconnections(from, to)) || []);
-      }
+      const data = customerData<PagedCustomers>(
+        nextTab === 'disconnection'
+          ? await customerApi.disconnections(from, to, { ...query, page: nextPage })
+          : await customerApi.connections(from, to, { ...query, page: nextPage })
+      );
+      if (nextTab === 'disconnection') setDisconnectRows(data.rows || []);
+      else setConnectionRows(data.rows || []);
+      setTotal(data.total || 0);
     } catch (err) {
       toast.error(
         customerError(err, nextTab === 'disconnection' ? 'Could not load disconnections' : 'Could not load new connections')
@@ -110,14 +120,14 @@ const ActiveCustomerListPage: React.FC = () => {
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
-
-  useEffect(() => {
-    if (tab === 'pending') refreshPending();
-    if (tab === 'connection' || tab === 'disconnection') refreshDated(tab);
+    const timer = setTimeout(() => {
+      if (tab === 'pending') refreshPending();
+      else if (tab === 'connection' || tab === 'disconnection') refreshDated(tab);
+      else refresh();
+    }, search ? 300 : 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, page, search, typeFilter]);
 
   useEffect(() => {
     if (!selected && !disconnecting && !reconnecting) return;
@@ -133,46 +143,35 @@ const ActiveCustomerListPage: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [selected, disconnecting, reconnecting, busyId]);
 
-  const filtered = useMemo(() => rows.filter((r) => matchCustomer(r, search, typeFilter)), [rows, search, typeFilter]);
-  const pendingFiltered = useMemo(
-    () => pendingRows.filter((r) => matchCustomer(r, search, typeFilter)),
-    [pendingRows, search, typeFilter]
-  );
-  const connectionFiltered = useMemo(
-    () => connectionRows.filter((r) => matchCustomer(r, search, typeFilter)),
-    [connectionRows, search, typeFilter]
-  );
-  const disconnectFiltered = useMemo(
-    () => disconnectRows.filter((r) => matchCustomer(r, search, typeFilter)),
-    [disconnectRows, search, typeFilter]
-  );
-
   const currentRows =
-    tab === 'pending'
-      ? pendingFiltered
-      : tab === 'connection'
-        ? connectionFiltered
-        : tab === 'disconnection'
-          ? disconnectFiltered
-          : filtered;
-  const cableCount = currentRows.filter((r) => r.customerType === 'cable').length;
-  const wifiCount = currentRows.filter((r) => r.customerType === 'wifi').length;
-  const pendingTotal = pendingFiltered.reduce((sum, r) => sum + Number(r.pendingAmount || 0), 0);
+    tab === 'pending' ? pendingRows : tab === 'connection' ? connectionRows : tab === 'disconnection' ? disconnectRows : rows;
+  const pendingTotal = pendingRows.reduce((sum, r) => sum + Number(r.pendingAmount || 0), 0);
 
   const subtitle =
     tab === 'pending'
-      ? `${pendingFiltered.length} pending · ₹ ${pendingTotal.toFixed(0)} due · ${cableCount} cable · ${wifiCount} wifi`
+      ? `${total} pending · ₹ ${pendingTotal.toFixed(0)} on this page`
       : tab === 'connection'
-        ? `${connectionFiltered.length} new connections · ${cableCount} cable · ${wifiCount} wifi`
+        ? `${total} new connections`
         : tab === 'disconnection'
-          ? `${disconnectFiltered.length} disconnected · ${cableCount} cable · ${wifiCount} wifi`
-          : `${filtered.length} active · ${cableCount} cable · ${wifiCount} wifi`;
+          ? `${total} disconnected`
+          : `${total} active`;
 
   const changeTab = (next: ListTab) => {
     setTab(next);
+    setPage(1);
     setSelected(null);
     setDisconnecting(null);
     setReconnecting(null);
+  };
+
+  const setSearchValue = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const setType = (type: CustomerType | '') => {
+    setTypeFilter(type);
+    setPage(1);
   };
 
   const openCollect = (customerId: string) => {
@@ -311,7 +310,7 @@ const ActiveCustomerListPage: React.FC = () => {
                 : tab === 'disconnection'
                   ? ' Disconnected Customers'
                   : ' Customers'}
-            <em className="trp-count">{currentRows.length}</em>
+            <em className="trp-count">{total}</em>
           </span>
           {(tab === 'connection' || tab === 'disconnection') && (
             <div className="cust-dates">
@@ -323,7 +322,14 @@ const ActiveCustomerListPage: React.FC = () => {
                 <label>To Date</label>
                 <input className="mst-inp" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
               </div>
-              <button className="mst-btn mst-btn-primary" type="button" onClick={() => refreshDated()}>
+              <button
+                className="mst-btn mst-btn-primary"
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  refreshDated(tab, fromDate, toDate, 1);
+                }}
+              >
                 Filter
               </button>
             </div>
@@ -333,8 +339,8 @@ const ActiveCustomerListPage: React.FC = () => {
               <button
                 key={type || 'all'}
                 type="button"
-                className={`cust-filter${typeFilter === type ? ' on' : ''}`}
-                onClick={() => setTypeFilter(type)}
+                  className={`cust-filter${typeFilter === type ? ' on' : ''}`}
+                  onClick={() => setType(type)}
               >
                 {type === '' ? 'All' : type === 'cable' ? 'Cable' : 'WiFi'}
               </button>
@@ -345,8 +351,8 @@ const ActiveCustomerListPage: React.FC = () => {
             <input
               className="mst-inp"
               placeholder="Search ID, name, mobile, area..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+                value={search}
+                onChange={(e) => setSearchValue(e.target.value)}
             />
           </div>
         </div>
@@ -402,9 +408,9 @@ const ActiveCustomerListPage: React.FC = () => {
                 </tr>
               )}
               {tab === 'pending' &&
-                pendingFiltered.map((row, i) => (
+                pendingRows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td>
                       <TypePill type={row.customerType} />
                     </td>
@@ -427,13 +433,13 @@ const ActiveCustomerListPage: React.FC = () => {
                   </tr>
                 ))}
               {tab === 'connection' &&
-                connectionFiltered.map((row, i) => (
+                connectionRows.map((row, i) => (
                   <tr
                     key={row.id}
                     className={`mst-click-row${selected?.id === row.id ? ' trp-row-on' : ''}`}
                     onClick={() => setSelected(row)}
                   >
-                    <td>{i + 1}</td>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td>
                       <TypePill type={row.customerType} />
                     </td>
@@ -450,13 +456,13 @@ const ActiveCustomerListPage: React.FC = () => {
                   </tr>
                 ))}
               {tab === 'disconnection' &&
-                disconnectFiltered.map((row, i) => (
+                disconnectRows.map((row, i) => (
                   <tr
                     key={row.id}
                     className={`mst-click-row${selected?.id === row.id ? ' trp-row-on' : ''}`}
                     onClick={() => setSelected(row)}
                   >
-                    <td>{i + 1}</td>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td>
                       <TypePill type={row.customerType} />
                     </td>
@@ -488,13 +494,13 @@ const ActiveCustomerListPage: React.FC = () => {
                   </tr>
                 ))}
               {tab === 'active' &&
-                filtered.map((row, i) => (
+                rows.map((row, i) => (
                   <tr
                     key={row.id}
                     className={`mst-click-row${selected?.id === row.id ? ' trp-row-on' : ''}`}
                     onClick={() => setSelected(row)}
                   >
-                    <td>{i + 1}</td>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td>
                       <TypePill type={row.customerType} />
                     </td>
@@ -538,6 +544,7 @@ const ActiveCustomerListPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <PageBar page={page} total={total} onPage={setPage} />
       </div>
 
       {selected && (
