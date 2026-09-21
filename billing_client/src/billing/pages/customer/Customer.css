@@ -1,3 +1,7 @@
+.mst-grid.cust-add-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
 .cust-types {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -222,6 +226,12 @@
 .cust-modal-f {
   border-top: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
   justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .mst-grid.cust-add-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

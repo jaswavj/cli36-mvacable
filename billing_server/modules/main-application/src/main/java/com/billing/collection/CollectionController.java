@@ -52,8 +52,10 @@ public class CollectionController {
 
     @GetMapping("/dashboard")
     public ResponseDO dashboard(@RequestParam(required = false) Integer year,
-                                @RequestParam(required = false) Integer month) {
-        return ok(collectionService.dashboard(year, month, currentUser()));
+                                @RequestParam(required = false) Integer month,
+                                @RequestParam(required = false) String from,
+                                @RequestParam(required = false) String to) {
+        return ok(collectionService.dashboard(year, month, from, to, currentUser()));
     }
 
     @GetMapping("/edit-log")

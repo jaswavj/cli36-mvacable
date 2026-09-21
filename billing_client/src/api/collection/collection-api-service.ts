@@ -164,18 +164,29 @@ export class CollectionApiService {
   editLog = (from: string, to: string) =>
     this.http.get(`/v1/cable-collections/edit-log?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 
-  dashboard = (year: number, month: number) =>
-    this.http.get(`/v1/cable-collections/dashboard?year=${year}&month=${month}`);
+  dashboard = (year: number, month: number, from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from && to) {
+      params.set('from', from);
+      params.set('to', to);
+    } else {
+      params.set('year', String(year));
+      params.set('month', String(month));
+    }
+    return this.http.get(`/v1/cable-collections/dashboard?${params}`);
+  };
 }
 
 export type DashboardDay = {
   date: string;
+  iso?: string;
   cash?: number;
   upi?: number;
   total?: number;
 };
 
 export type DashboardCollector = {
+  userId?: number;
   name?: string;
   count?: number;
   cash?: number;
@@ -186,6 +197,8 @@ export type DashboardCollector = {
 export type DashboardData = {
   year: number;
   month: number;
+  from?: string;
+  to?: string;
   label?: string;
   collectionTotal?: number;
   lastCollectionTotal?: number;

@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -47,6 +48,8 @@ public class CollectionService {
 
     private static final Set<String> PAY_MODES = Set.of("cash", "upi");
     private static final DateTimeFormatter MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter DAY_SHORT = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
     private static final DateTimeFormatter PAID_LABEL = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final JdbcTemplate jdbcTemplate;
@@ -428,23 +431,50 @@ public class CollectionService {
         return data;
     }
 
-    public DashboardData dashboard(Integer year, Integer month, AppUser user) {
+    public DashboardData dashboard(Integer year, Integer month, String from, String to, AppUser user) {
         requireShopUser(user);
         LocalDate now = LocalDate.now();
-        int y = year == null ? now.getYear() : year;
-        int m = month == null ? now.getMonthValue() : month;
-        if (m < 1) {
-            m = 1;
+        LocalDate fromDate;
+        LocalDate toDate;
+        boolean monthMode;
+        if (from != null && !from.isBlank() && to != null && !to.isBlank()) {
+            fromDate = parseReportDate(from, "From date");
+            toDate = parseReportDate(to, "To date");
+            if (toDate.isBefore(fromDate)) {
+                throw new RuntimeException("To date cannot be before from date");
+            }
+            YearMonth fromMonth = YearMonth.from(fromDate);
+            monthMode = fromDate.getDayOfMonth() == 1
+                    && toDate.equals(fromMonth.atEndOfMonth())
+                    && fromMonth.equals(YearMonth.from(toDate));
+        } else {
+            int y = year == null ? now.getYear() : year;
+            int m = month == null ? now.getMonthValue() : month;
+            if (m < 1) {
+                m = 1;
+            }
+            if (m > 12) {
+                m = 12;
+            }
+            YearMonth selected = YearMonth.of(y, m);
+            fromDate = selected.atDay(1);
+            toDate = selected.atEndOfMonth();
+            monthMode = true;
         }
-        if (m > 12) {
-            m = 12;
+        YearMonth ym = YearMonth.from(toDate);
+        long days = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
+        LocalDate prevFrom;
+        LocalDate prevTo;
+        if (monthMode) {
+            YearMonth prev = YearMonth.from(fromDate).minusMonths(1);
+            prevFrom = prev.atDay(1);
+            prevTo = prev.atEndOfMonth();
+        } else {
+            prevTo = fromDate.minusDays(1);
+            prevFrom = prevTo.minusDays(days - 1);
         }
-        YearMonth ym = YearMonth.of(y, m);
-        YearMonth prev = ym.minusMonths(1);
-        String from = ym.atDay(1).toString();
-        String to = ym.atEndOfMonth().toString();
-        AccountReportData current = account(from, to, user);
-        AccountReportData last = account(prev.atDay(1).toString(), prev.atEndOfMonth().toString(), user);
+        AccountReportData current = account(fromDate.toString(), toDate.toString(), user);
+        AccountReportData last = account(prevFrom.toString(), prevTo.toString(), user);
         String shopId = user.shopId();
 
         List<CableCustomerRow> customers = cableCustomerService.list(user, null, false);
@@ -495,9 +525,11 @@ public class CollectionService {
         }
 
         DashboardData data = new DashboardData();
-        data.setYear(y);
-        data.setMonth(m);
-        data.setLabel(ym.format(MONTH_LABEL));
+        data.setYear(fromDate.getYear());
+        data.setMonth(fromDate.getMonthValue());
+        data.setFrom(fromDate.toString());
+        data.setTo(toDate.toString());
+        data.setLabel(dashboardLabel(fromDate, toDate, monthMode));
         data.setCollectionTotal(current.getCollectionTotal());
         data.setLastCollectionTotal(last.getCollectionTotal());
         data.setCollectionPct(pctChange(nz(current.getCollectionTotal()), nz(last.getCollectionTotal())));
@@ -531,14 +563,14 @@ public class CollectionService {
         data.setNewConnections(count(
                 "SELECT COUNT(*) FROM cable_customers WHERE shop_id = ? AND joining_date BETWEEN ? AND ?",
                 shopId,
-                Date.valueOf(ym.atDay(1)),
-                Date.valueOf(ym.atEndOfMonth())
+                Date.valueOf(fromDate),
+                Date.valueOf(toDate)
         ));
         data.setDisconnections(count(
                 "SELECT COUNT(*) FROM cable_customers WHERE shop_id = ? AND disconnect_date BETWEEN ? AND ?",
                 shopId,
-                Date.valueOf(ym.atDay(1)),
-                Date.valueOf(ym.atEndOfMonth())
+                Date.valueOf(fromDate),
+                Date.valueOf(toDate)
         ));
         data.setExpectedAmount(round2(expected));
         data.setMonthDueCollected(sum(
@@ -547,8 +579,8 @@ public class CollectionService {
                 shopId,
                 Date.valueOf(ym.atDay(1))
         ));
-        data.setDaily(dailyRows(shopId, ym));
-        data.setCollectors(collectorRows(shopId, ym));
+        data.setDaily(dailyRows(shopId, fromDate, toDate));
+        data.setCollectors(collectorRows(shopId, fromDate, toDate));
         return data;
     }
 
@@ -921,7 +953,17 @@ public class CollectionService {
         }
     }
 
-    private List<DashboardDay> dailyRows(String shopId, YearMonth ym) {
+    private String dashboardLabel(LocalDate fromDate, LocalDate toDate, boolean monthMode) {
+        if (fromDate.equals(toDate)) {
+            return fromDate.format(DAY_LABEL);
+        }
+        if (monthMode) {
+            return YearMonth.from(fromDate).format(MONTH_LABEL);
+        }
+        return fromDate.format(DAY_LABEL) + " – " + toDate.format(DAY_LABEL);
+    }
+
+    private List<DashboardDay> dailyRows(String shopId, LocalDate fromDate, LocalDate toDate) {
         Map<LocalDate, DashboardDay> byDay = new HashMap<>();
         jdbcTemplate.query(
                 "SELECT paid_date, " +
@@ -932,36 +974,37 @@ public class CollectionService {
                         "AND paid_date BETWEEN ? AND ? GROUP BY paid_date",
                 (rs, i) -> {
                     LocalDate day = rs.getDate("paid_date").toLocalDate();
-                    DashboardDay row = new DashboardDay();
-                    row.setDate(day.format(DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH)));
-                    row.setCash(round2(rs.getDouble("cash")));
-                    row.setUpi(round2(rs.getDouble("upi")));
-                    row.setTotal(round2(rs.getDouble("total")));
-                    byDay.put(day, row);
+                    byDay.put(day, dashboardDay(day, rs.getDouble("cash"), rs.getDouble("upi"), rs.getDouble("total")));
                     return null;
                 },
                 shopId,
-                Date.valueOf(ym.atDay(1)),
-                Date.valueOf(ym.atEndOfMonth())
+                Date.valueOf(fromDate),
+                Date.valueOf(toDate)
         );
         List<DashboardDay> rows = new ArrayList<>();
-        for (LocalDate day = ym.atDay(1); !day.isAfter(ym.atEndOfMonth()); day = day.plusDays(1)) {
+        for (LocalDate day = fromDate; !day.isAfter(toDate); day = day.plusDays(1)) {
             DashboardDay row = byDay.get(day);
             if (row == null) {
-                row = new DashboardDay();
-                row.setDate(day.format(DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH)));
-                row.setCash(0d);
-                row.setUpi(0d);
-                row.setTotal(0d);
+                row = dashboardDay(day, 0, 0, 0);
             }
             rows.add(row);
         }
         return rows;
     }
 
-    private List<DashboardCollector> collectorRows(String shopId, YearMonth ym) {
+    private DashboardDay dashboardDay(LocalDate day, double cash, double upi, double total) {
+        DashboardDay row = new DashboardDay();
+        row.setDate(day.format(DAY_SHORT));
+        row.setIso(day.toString());
+        row.setCash(round2(cash));
+        row.setUpi(round2(upi));
+        row.setTotal(round2(total));
+        return row;
+    }
+
+    private List<DashboardCollector> collectorRows(String shopId, LocalDate fromDate, LocalDate toDate) {
         return jdbcTemplate.query(
-                "SELECT IFNULL(NULLIF(u.fullName,''), IFNULL(u.user_name,'User')) AS name, " +
+                "SELECT c.uid AS userId, IFNULL(NULLIF(u.fullName,''), IFNULL(u.user_name,'User')) AS name, " +
                         "COUNT(*) AS cnt, " +
                         "SUM(CASE WHEN LOWER(c.pay_mode) = 'upi' THEN c.amount ELSE 0 END) AS upi, " +
                         "SUM(CASE WHEN LOWER(c.pay_mode) <> 'upi' THEN c.amount ELSE 0 END) AS cash, " +
@@ -971,6 +1014,8 @@ public class CollectionService {
                         "GROUP BY c.uid, IFNULL(NULLIF(u.fullName,''), IFNULL(u.user_name,'User')) ORDER BY total DESC",
                 (rs, i) -> {
                     DashboardCollector row = new DashboardCollector();
+                    long userId = rs.getLong("userId");
+                    row.setUserId(rs.wasNull() ? null : userId);
                     row.setName(rs.getString("name"));
                     row.setCount(rs.getInt("cnt"));
                     row.setUpi(round2(rs.getDouble("upi")));
@@ -979,8 +1024,8 @@ public class CollectionService {
                     return row;
                 },
                 shopId,
-                Date.valueOf(ym.atDay(1)),
-                Date.valueOf(ym.atEndOfMonth())
+                Date.valueOf(fromDate),
+                Date.valueOf(toDate)
         );
     }
 

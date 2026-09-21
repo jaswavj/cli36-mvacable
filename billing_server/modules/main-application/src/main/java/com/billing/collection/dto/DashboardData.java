@@ -9,6 +9,8 @@ import java.util.List;
 public class DashboardData {
     private Integer year;
     private Integer month;
+    private String from;
+    private String to;
     private String label;
     private Double collectionTotal;
     private Double lastCollectionTotal;

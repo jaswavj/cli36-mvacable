@@ -138,7 +138,7 @@ const AddCustomerPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mst-grid mst-grid-wide">
+      <div className="mst-grid cust-add-grid">
         <div className="mst-card">
           <div className="mst-card-h">
             <span>
