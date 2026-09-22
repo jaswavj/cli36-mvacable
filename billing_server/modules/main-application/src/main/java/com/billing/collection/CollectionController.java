@@ -87,6 +87,11 @@ public class CollectionController {
         return ok(collectionService.save(request, currentUser()));
     }
 
+    @PostMapping("/recharge")
+    public ResponseDO recharge(@RequestParam String customerId) {
+        return ok(collectionService.rechargeCurrentMonth(customerId, currentUser()));
+    }
+
     @GetMapping("/print/{id}")
     public ResponseDO printReceipt(@PathVariable Long id) {
         return ok(collectionPrintService.receipt(id, currentUser()));

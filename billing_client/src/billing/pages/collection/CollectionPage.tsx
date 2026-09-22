@@ -40,6 +40,15 @@ const last3MonthsFrom = () => {
   return toIsoDate(d);
 };
 const todayIso = () => toIsoDate(new Date());
+const currentMonthPrefix = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+};
+const needsRechargeNow = (lookup?: CollectionLookup | null) => {
+  if (!lookup?.currentMonth) return true;
+  const month = (lookup.currentMonth.month || '').slice(0, 7);
+  return month !== currentMonthPrefix() || lookup.currentMonth.recharged !== true;
+};
 
 type PendingPay = {
   row: CollectionMonth;
@@ -55,6 +64,9 @@ const CollectionPage: React.FC = () => {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [busyMonth, setBusyMonth] = useState('');
   const [pending, setPending] = useState<PendingPay | null>(null);
+  const [rechargePrompt, setRechargePrompt] = useState(false);
+  const [acceptedRecharge, setAcceptedRecharge] = useState(false);
+  const [skipCurrentRecharge, setSkipCurrentRecharge] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [fromDate, setFromDate] = useState(last3MonthsFrom);
   const [toDate, setToDate] = useState(todayIso);
@@ -62,18 +74,26 @@ const CollectionPage: React.FC = () => {
   const [appliedTo, setAppliedTo] = useState(todayIso);
   const [a4Receipt, setA4Receipt] = useState<CollectionReceipt | null>(null);
 
-  const unpaidRows = (lookup?: CollectionLookup | null): CollectionMonth[] => {
+  const unpaidRows = (
+    lookup?: CollectionLookup | null,
+    opts: { includeCurrent?: boolean; includePending?: boolean } = {}
+  ): CollectionMonth[] => {
     if (!lookup) return [];
-    const rows = [...(lookup.pendingMonths || [])];
-    if (lookup.currentMonth && !lookup.currentMonth.paid) {
+    const canCurrent = Boolean(opts.includeCurrent) || !needsRechargeNow(lookup);
+    const canPending = Boolean(opts.includePending) || canCurrent;
+    const rows = canPending ? [...(lookup.pendingMonths || [])] : [];
+    if (canCurrent && lookup.currentMonth && !lookup.currentMonth.paid) {
       rows.push(lookup.currentMonth);
     }
     return rows;
   };
 
-  const fillAmounts = (lookup: CollectionLookup) => {
+  const fillAmounts = (
+    lookup: CollectionLookup,
+    opts: { includeCurrent?: boolean; includePending?: boolean } = {}
+  ) => {
     const next: Record<string, string> = {};
-    unpaidRows(lookup).forEach((row) => {
+    unpaidRows(lookup, opts).forEach((row) => {
       const value = row.balance ?? row.due ?? lookup.lastAmount ?? lookup.customer.monthlyAmount;
       next[row.month] = value ? String(value) : '';
     });
@@ -88,17 +108,38 @@ const CollectionPage: React.FC = () => {
     setBusyMonth('lookup');
     try {
       const next = collectionData<CollectionLookup>(await collectionApi.lookup(id.trim()));
+      setAcceptedRecharge(false);
+      setSkipCurrentRecharge(false);
+      const needs = needsRechargeNow(next);
+      setRechargePrompt(needs);
       setData(next);
-      fillAmounts(next);
+      fillAmounts(next, { includeCurrent: !needs, includePending: !needs });
     } catch (err) {
       setData(null);
       setShowDetails(false);
+      setRechargePrompt(false);
+      setAcceptedRecharge(false);
+      setSkipCurrentRecharge(false);
       setAmounts({});
       toast.error(collectionError(err, 'Customer not found'));
     } finally {
       setBusyMonth('');
       inputRef.current?.select();
     }
+  };
+
+  const resetEntry = () => {
+    if (busyMonth) return;
+    setCustomerId('');
+    setData(null);
+    setAmounts({});
+    setPending(null);
+    setRechargePrompt(false);
+    setAcceptedRecharge(false);
+    setSkipCurrentRecharge(false);
+    setShowDetails(false);
+    setBusyMonth('');
+    inputRef.current?.focus();
   };
 
   const incomingId = (location.state as { customerId?: string } | null)?.customerId;
@@ -109,11 +150,7 @@ const CollectionPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingId]);
 
-  const askCollect = (row: CollectionMonth, payMode: PayMode, firstUnpaid?: CollectionMonth) => {
-    if (firstUnpaid && firstUnpaid.month !== row.month) {
-      toast.warning(`Collect ${firstUnpaid.label} first`);
-      return;
-    }
+  const askCollect = (row: CollectionMonth, payMode: PayMode) => {
     const value = Number(amounts[row.month]);
     if (!value || value <= 0) {
       toast.warning(`Enter amount for ${row.label}`);
@@ -134,8 +171,15 @@ const CollectionPage: React.FC = () => {
         })
       );
       setPending(null);
+      const needs = needsRechargeNow(next);
+      const keepRecharge = acceptedRecharge || !needs;
+      setAcceptedRecharge(keepRecharge);
+      setRechargePrompt(false);
       setData(next);
-      fillAmounts(next);
+      fillAmounts(next, {
+        includeCurrent: keepRecharge,
+        includePending: keepRecharge || skipCurrentRecharge,
+      });
       toast.success(`${row.label} collected by ${payLabel(payMode)}`);
       inputRef.current?.select();
     } catch (err) {
@@ -184,15 +228,16 @@ const CollectionPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!pending && !showDetails) return;
+    if (!pending && !showDetails && !rechargePrompt) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || busyMonth) return;
       if (pending) setPending(null);
+      else if (rechargePrompt) cancelRecharge();
       else setShowDetails(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [pending, showDetails, busyMonth]);
+  }, [pending, showDetails, rechargePrompt, busyMonth]);
 
   useEffect(() => {
     if (!a4Receipt) return;
@@ -207,9 +252,38 @@ const CollectionPage: React.FC = () => {
     };
   }, [a4Receipt]);
 
-  const rows = unpaidRows(data);
-  const firstUnpaid = rows[0];
-  const currentPaid = Boolean(data?.currentMonth?.paid);
+  const cancelRecharge = () => {
+    if (!data) return;
+    setRechargePrompt(false);
+    setAcceptedRecharge(false);
+    setSkipCurrentRecharge(true);
+    fillAmounts(data, { includeCurrent: false, includePending: true });
+  };
+
+  const acceptRecharge = async () => {
+    if (!data) return;
+    setBusyMonth('recharge');
+    try {
+      const next = collectionData<CollectionLookup>(
+        await collectionApi.recharge(data.customer.customerId)
+      );
+      setAcceptedRecharge(true);
+      setSkipCurrentRecharge(false);
+      setRechargePrompt(false);
+      setData(next);
+      fillAmounts(next, { includeCurrent: true, includePending: true });
+      toast.success(`${next.currentMonth?.label || 'This month'} recharged. Collect now or later.`);
+    } catch (err) {
+      toast.error(collectionError(err, 'Could not recharge'));
+    } finally {
+      setBusyMonth('');
+    }
+  };
+
+  const currentReady = Boolean(data) && (acceptedRecharge || !needsRechargeNow(data));
+  const pendingReady = currentReady || skipCurrentRecharge;
+  const rows = unpaidRows(data, { includeCurrent: currentReady, includePending: pendingReady });
+  const currentPaid = Boolean(data?.currentMonth?.paid && data.currentMonth.recharged);
   const payments: CollectionPayment[] = data?.payments || [];
   const filteredPayments = payments.filter((row) => {
     const month = (row.month || '').slice(0, 7);
@@ -220,7 +294,7 @@ const CollectionPage: React.FC = () => {
   });
   const paidTotal = filteredPayments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const paymentGroups = (() => {
-    const groups: { key: string; label: string; rows: CollectionPayment[]; total: number }[] = [];
+    const groups: { key: string; label: string; rechargeDate?: string; rows: CollectionPayment[]; total: number }[] = [];
     const index = new Map<string, number>();
     [...filteredPayments]
       .sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')))
@@ -229,7 +303,13 @@ const CollectionPage: React.FC = () => {
         const at = index.get(key);
         if (at == null) {
           index.set(key, groups.length);
-          groups.push({ key, label: monthYearLabel(row), rows: [row], total: Number(row.amount || 0) });
+          groups.push({
+            key,
+            label: monthYearLabel(row),
+            rechargeDate: row.rechargeDate,
+            rows: [row],
+            total: Number(row.amount || 0),
+          });
         } else {
           groups[at].rows.push(row);
           groups[at].total += Number(row.amount || 0);
@@ -271,7 +351,7 @@ const CollectionPage: React.FC = () => {
           </div>
           <div>
             <h2 className="mst-title">Collection</h2>
-            <p className="trp-sub">Enter customer ID and press Enter</p>
+            <p className="trp-sub">Enter customer ID. Recharge the current month if it is not recharged yet.</p>
           </div>
         </div>
 
@@ -295,6 +375,15 @@ const CollectionPage: React.FC = () => {
             />
             <button className="mst-btn mst-btn-primary" type="submit" disabled={busyMonth === 'lookup'}>
               {busyMonth === 'lookup' ? 'Loading…' : 'Show'}
+            </button>
+            <button
+              className="mst-btn mst-btn-outline col-details-btn"
+              type="button"
+              title="Reset / refresh"
+              disabled={Boolean(busyMonth)}
+              onClick={resetEntry}
+            >
+              <i className="fas fa-sync-alt" />
             </button>
             <button
               className="mst-btn mst-btn-outline col-details-btn"
@@ -359,33 +448,33 @@ const CollectionPage: React.FC = () => {
               <div className="col-block">
                 <div className="col-block-h">Current Month · {data.currentMonth.label}</div>
                 <div className="col-paid on">
-                  Paid on {data.currentMonth.paidDate} · {payLabel(data.currentMonth.payMode)}
-                  {data.currentMonth.amount != null ? ` · ₹ ${Number(data.currentMonth.amount).toFixed(0)}` : ''}
+                  Recharged on {data.currentMonth.paidDate} · {payLabel(data.currentMonth.payMode)}
+                  {data.currentMonth.paidAmount != null ? ` · ₹ ${Number(data.currentMonth.paidAmount).toFixed(0)}` : ''}
                 </div>
               </div>
             )}
 
-            {rows.length === 0 && currentPaid && (
-              <div className="col-paid on">No pending months</div>
+            {rows.length === 0 && !rechargePrompt && (currentPaid || skipCurrentRecharge) && (
+              <div className="col-paid on">No pending recharge months</div>
             )}
 
             {rows.length > 0 && (
               <div className="col-rows">
                 {rows.map((row) => {
                   const isCurrent = data.currentMonth.month === row.month;
-                  const locked = Boolean(firstUnpaid && firstUnpaid.month !== row.month);
+                  const isNewRecharge = isCurrent && !row.recharged;
                   return (
-                    <div key={row.month} className={`col-row${locked ? ' locked' : ''}`}>
+                    <div key={row.month} className="col-row">
                       <div className="col-row-meta">
                         <strong>{row.label}</strong>
                         <span className={`col-month ${row.paidAmount ? 'balance' : isCurrent ? 'current' : 'pending'}`}>
-                          {locked
-                            ? `Collect ${firstUnpaid.label} first`
+                          {isNewRecharge
+                            ? `Recharge this month · ₹ ${Number(row.due || 0).toFixed(0)}`
                             : row.paidAmount
-                              ? `Balance ₹ ${Number(row.balance || 0).toFixed(0)} / ₹ ${Number(row.due || 0).toFixed(0)}`
+                              ? `Pending ₹ ${Number(row.balance || 0).toFixed(0)} / ₹ ${Number(row.due || 0).toFixed(0)}`
                               : isCurrent
                                 ? `This month · ₹ ${Number(row.due || 0).toFixed(0)}`
-                                : `Pending · ₹ ${Number(row.due || 0).toFixed(0)}`}
+                                : `Pending recharge · ₹ ${Number(row.due || 0).toFixed(0)}`}
                         </span>
                       </div>
                       <div className="col-amount">
@@ -398,22 +487,21 @@ const CollectionPage: React.FC = () => {
                           value={amounts[row.month] || ''}
                           onChange={(e) => setAmounts((prev) => ({ ...prev, [row.month]: e.target.value }))}
                           placeholder="0"
-                          disabled={locked}
                         />
                       </div>
                       <button
                         className="col-pay-btn cash"
                         type="button"
-                        disabled={Boolean(busyMonth) || locked}
-                        onClick={() => askCollect(row, 'cash', firstUnpaid)}
+                        disabled={Boolean(busyMonth)}
+                        onClick={() => askCollect(row, 'cash')}
                       >
                         <i className="fas fa-money-bill-wave" /> Cash
                       </button>
                       <button
                         className="col-pay-btn upi"
                         type="button"
-                        disabled={Boolean(busyMonth) || locked}
-                        onClick={() => askCollect(row, 'upi', firstUnpaid)}
+                        disabled={Boolean(busyMonth)}
+                        onClick={() => askCollect(row, 'upi')}
                       >
                         <i className="fas fa-mobile-alt" /> UPI
                       </button>
@@ -426,12 +514,69 @@ const CollectionPage: React.FC = () => {
         )}
       </div>
 
+      {rechargePrompt && data &&
+        createPortal(
+          <div className="cust-modal col-recharge-overlay" onClick={() => !busyMonth && cancelRecharge()}>
+            <div className="cust-modal-box col-confirm col-recharge-box" onClick={(e) => e.stopPropagation()}>
+              <div className="cust-modal-h">
+                <div>
+                  <h3>Recharge required</h3>
+                  <p>
+                    {show(data.customer.name)} ({data.customer.customerId})
+                  </p>
+                </div>
+                <button
+                  className="mst-icon-btn"
+                  type="button"
+                  title="Close"
+                  disabled={Boolean(busyMonth)}
+                  onClick={cancelRecharge}
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+              <div className="cust-modal-b col-recharge-body">
+                <div className="col-recharge-icon">
+                  <i className="fas fa-bolt" />
+                </div>
+                <p>
+                  <strong>{data.currentMonth?.label}</strong> is not recharged for this customer.
+                </p>
+                <p>Recharge this month, or cancel to collect old pending months only.</p>
+              </div>
+              <div className="cust-modal-f">
+                <button
+                  className="mst-btn mst-btn-outline"
+                  type="button"
+                  disabled={Boolean(busyMonth)}
+                  onClick={cancelRecharge}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="mst-btn mst-btn-primary"
+                  type="button"
+                  disabled={Boolean(busyMonth)}
+                  onClick={acceptRecharge}
+                >
+                  <i className="fas fa-bolt" /> {busyMonth === 'recharge' ? 'Saving…' : 'Recharge'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {pending && data && (
         <div className="cust-modal" onClick={() => !busyMonth && setPending(null)}>
           <div className="cust-modal-box col-confirm" onClick={(e) => e.stopPropagation()}>
             <div className="cust-modal-h">
               <div>
-                <h3>Confirm Collection</h3>
+                <h3>
+                  {needsRechargeNow(data) && data.currentMonth?.month === pending.row.month
+                    ? 'Confirm Recharge'
+                    : 'Confirm Collection'}
+                </h3>
                 <p>Check details before saving</p>
               </div>
               <button
@@ -545,6 +690,7 @@ const CollectionPage: React.FC = () => {
                     <thead>
                       <tr>
                         <th style={{ width: 40 }}>#</th>
+                        <th>Recharge Date</th>
                         <th>Paid Date</th>
                         <th>Time</th>
                         <th>Mode</th>
@@ -557,8 +703,9 @@ const CollectionPage: React.FC = () => {
                       {paymentGroups.map((group) => (
                         <React.Fragment key={group.key}>
                           <tr className="col-month-head">
-                            <td colSpan={4}>
+                            <td colSpan={5}>
                               <strong>{group.label}</strong>
+                              {group.rechargeDate ? ` · Recharged ${group.rechargeDate}` : ''}
                             </td>
                             <td className="num">
                               <strong>₹ {group.total.toFixed(0)}</strong>
@@ -568,6 +715,7 @@ const CollectionPage: React.FC = () => {
                           {group.rows.map((row, i) => (
                             <tr key={row.id}>
                               <td>{i + 1}</td>
+                              <td>{show(row.rechargeDate)}</td>
                               <td>{show(row.paidDate)}</td>
                               <td>{show(row.paidTime)}</td>
                               <td>{payLabel(row.payMode)}</td>
@@ -592,7 +740,7 @@ const CollectionPage: React.FC = () => {
                     </tbody>
                     <tfoot>
                       <tr>
-                        <td colSpan={4}>
+                        <td colSpan={5}>
                           <strong>Total</strong>
                         </td>
                         <td className="num">

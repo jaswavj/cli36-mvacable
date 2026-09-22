@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 import {
   collectionApi,
   collectionData,
@@ -39,6 +40,32 @@ const TABS: { id: ListTab; label: string }[] = [
   { id: 'disconnection', label: 'Disconnection' },
 ];
 
+const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : 'Cable');
+
+const fetchAllPages = async <T,>(
+  load: (page: number) => Promise<{ rows?: T[]; total?: number }>
+): Promise<T[]> => {
+  const first = await load(1);
+  const all = [...(first.rows || [])];
+  const total = first.total || all.length;
+  for (let page = 2; all.length < total; page++) {
+    const next = await load(page);
+    if (!next.rows?.length) break;
+    all.push(...next.rows);
+  }
+  return all;
+};
+
+const saveXlsx = (rows: Record<string, string | number>[], sheetName: string, fileName: string) => {
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  sheet['!cols'] = Object.keys(rows[0] || {}).map((key) => ({
+    wch: Math.max(key.length + 2, 14),
+  }));
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, sheetName.slice(0, 31));
+  XLSX.writeFile(book, fileName);
+};
+
 const TypePill: React.FC<{ type?: string }> = ({ type }) => (
   <span className={`cust-type-pill ${type}`}>
     <i className={type === 'wifi' ? 'fas fa-wifi' : 'fas fa-tv'} />
@@ -60,6 +87,7 @@ const ActiveCustomerListPage: React.FC = () => {
   const [fromDate, setFromDate] = useState(monthStartIso);
   const [toDate, setToDate] = useState(todayIso);
   const [busyId, setBusyId] = useState(0);
+  const [downloading, setDownloading] = useState(false);
   const [selected, setSelected] = useState<CableCustomer | null>(null);
   const [disconnecting, setDisconnecting] = useState<CableCustomer | null>(null);
   const [disconnectDate, setDisconnectDate] = useState(todayIso);
@@ -256,6 +284,117 @@ const ActiveCustomerListPage: React.FC = () => {
     }
   };
 
+  const downloadTab = async () => {
+    if (downloading) return;
+    if ((tab === 'connection' || tab === 'disconnection') && (!fromDate || !toDate)) {
+      toast.warning('Select from and to date');
+      return;
+    }
+    setDownloading(true);
+    try {
+      const exportQuery = { type: typeFilter, search, size: 100 };
+      if (tab === 'pending') {
+        const list = await fetchAllPages<PendingCustomer>(async (nextPage) =>
+          collectionData<PendingList>(
+            await collectionApi.pendingCustomers({ ...exportQuery, page: nextPage })
+          )
+        );
+        if (!list.length) {
+          toast.warning('No pending customers to download');
+          return;
+        }
+        saveXlsx(
+          list.map((row, i) => ({
+            '#': i + 1,
+            Type: typeLabel(row.customerType),
+            'Customer ID': row.customerId || '',
+            Name: row.name || '',
+            Mobile: row.mobile || '',
+            Area: row.area || '',
+            Joined: row.joiningDate || '',
+            'Monthly Amount': Number(row.monthlyAmount || 0),
+            'Pending From': row.firstPendingMonth || '',
+            Months: Number(row.pendingMonths || 0),
+            'Pending Amount': Number(row.pendingAmount || 0),
+          })),
+          'Pending Payment',
+          `pending-payment-${todayIso()}.xlsx`
+        );
+      } else if (tab === 'connection' || tab === 'disconnection') {
+        const list = await fetchAllPages<CableCustomer>(async (nextPage) =>
+          customerData<PagedCustomers>(
+            tab === 'disconnection'
+              ? await customerApi.disconnections(fromDate, toDate, { ...exportQuery, page: nextPage })
+              : await customerApi.connections(fromDate, toDate, { ...exportQuery, page: nextPage })
+          )
+        );
+        if (!list.length) {
+          toast.warning(tab === 'disconnection' ? 'No disconnections to download' : 'No new connections to download');
+          return;
+        }
+        const disconnected = tab === 'disconnection';
+        saveXlsx(
+          list.map((row, i) => ({
+            '#': i + 1,
+            Type: typeLabel(row.customerType),
+            'Customer ID': row.customerId || '',
+            Name: row.name || '',
+            Mobile: row.mobile || '',
+            Area: row.area || '',
+            Address: row.address || '',
+            Joined: row.joiningDate || '',
+            ...(disconnected
+              ? {
+                  Disconnected: row.disconnectDate || '',
+                  'Disconnect Notes': row.disconnectNotes || '',
+                }
+              : {}),
+            'Monthly Amount': Number(row.monthlyAmount || 0),
+            'Created By': row.createdBy || '',
+          })),
+          disconnected ? 'Disconnections' : 'New Connections',
+          `${disconnected ? 'disconnections' : 'new-connections'}-${fromDate}-to-${toDate}.xlsx`
+        );
+      } else {
+        const list = await fetchAllPages<CableCustomer>(async (nextPage) =>
+          customerData<PagedCustomers>(
+            await customerApi.list({ ...exportQuery, page: nextPage, activeOnly: true })
+          )
+        );
+        if (!list.length) {
+          toast.warning('No active customers to download');
+          return;
+        }
+        saveXlsx(
+          list.map((row, i) => ({
+            '#': i + 1,
+            Type: typeLabel(row.customerType),
+            'Customer ID': row.customerId || '',
+            Name: row.name || '',
+            Mobile: row.mobile || '',
+            Area: row.area || '',
+            Address: row.address || '',
+            Joined: row.joiningDate || '',
+            'Monthly Amount': Number(row.monthlyAmount || 0),
+            Notes: row.notes || '',
+            'Created By': row.createdBy || '',
+          })),
+          'Active Customers',
+          `active-customers-${todayIso()}.xlsx`
+        );
+      }
+      toast.success('Excel downloaded');
+    } catch (err) {
+      toast.error(
+        tab === 'pending'
+          ? collectionError(err, 'Could not download Excel')
+          : customerError(err, 'Could not download Excel')
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const emptyMessage = () => {
     if (search || typeFilter) return 'No matching customer';
     if (tab === 'pending') return 'No pending payment customers';
@@ -355,6 +494,16 @@ const ActiveCustomerListPage: React.FC = () => {
                 onChange={(e) => setSearchValue(e.target.value)}
             />
           </div>
+          <button
+            className="mst-btn mst-btn-outline cust-xlsx-btn"
+            type="button"
+            disabled={downloading || total === 0}
+            onClick={downloadTab}
+            title={`Download ${TABS.find((item) => item.id === tab)?.label || 'list'} Excel`}
+          >
+            <i className="fas fa-file-excel" />
+            {downloading ? ' Downloading…' : ' Excel'}
+          </button>
         </div>
         <div className="mst-table-wrap">
           <table className="mst-table trp-table">

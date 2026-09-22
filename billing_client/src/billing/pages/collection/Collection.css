@@ -270,6 +270,36 @@
   padding: 0 14px;
 }
 
+.col-recharge-overlay {
+  z-index: 4000;
+}
+
+.col-recharge-box {
+  width: min(420px, 100%);
+}
+
+.col-recharge-body {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
+.col-recharge-body p {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.col-recharge-icon {
+  width: 56px;
+  height: 56px;
+  margin: 4px auto 2px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ebf4ff;
+  color: #2b6cb0;
+  font-size: 1.35rem;
+}
+
 @media (max-width: 640px) {
   .col-details,
   .col-row {

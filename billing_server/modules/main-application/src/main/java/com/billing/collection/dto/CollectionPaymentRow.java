@@ -11,5 +11,6 @@ public class CollectionPaymentRow {
     private String payMode;
     private String paidDate;
     private String paidTime;
+    private String rechargeDate;
     private String collectedBy;
 }

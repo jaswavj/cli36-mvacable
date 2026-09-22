@@ -190,6 +190,11 @@
   flex-wrap: wrap;
 }
 
+.cust-xlsx-btn {
+  height: 36px;
+  white-space: nowrap;
+}
+
 .cust-dates {
   display: flex;
   flex-wrap: wrap;

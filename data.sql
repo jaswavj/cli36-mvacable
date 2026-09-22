@@ -63,9 +63,14 @@ CREATE TABLE `cable_collections` (
   `is_cancelled` tinyint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `idx_cable_collection_month` (`shop_id`,`customer_pk`,`collection_month`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_collections` */
+
+insert  into `cable_collections`(`id`,`customer_pk`,`customer_id`,`collection_month`,`amount`,`due_amount`,`pay_mode`,`paid_date`,`paid_time`,`uid`,`shop_id`,`notes`,`is_cancelled`) values 
+(1,1,'101','2026-08-01',50.00,300.00,'cash','2026-09-22','13:46:26',1,'S01',NULL,0),
+(2,1,'101','2026-08-01',50.00,300.00,'upi','2026-09-22','13:46:30',1,'S01',NULL,0),
+(3,1,'101','2026-09-01',50.00,300.00,'cash','2026-09-22','13:46:46',1,'S01',NULL,0);
 
 /*Table structure for table `cable_customers` */
 
@@ -97,7 +102,7 @@ CREATE TABLE `cable_customers` (
 /*Data for the table `cable_customers` */
 
 insert  into `cable_customers`(`id`,`customer_type`,`customer_id`,`name`,`mobile`,`address`,`area`,`joining_date`,`notes`,`monthly_amount`,`is_active`,`disconnect_date`,`disconnect_notes`,`reconnect_date`,`reconnect_notes`,`uid`,`shop_id`,`created_at`) values 
-(1,'cable','3133352597','AANANTHARAJ DHANDAPANI','9123456709','NO.4/266, THIDEERKUPPAM AKKARAIPETTAI NAGAPATTINAM.','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
+(1,'cable','101','AANANTHARAJ DHANDAPANI','9123456709','NO.4/266, THIDEERKUPPAM AKKARAIPETTAI NAGAPATTINAM.','TATA','2026-09-21','',300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
 (2,'cable','3133675126','AATHITHAN ANANTHAVEL','9943401131','NO. 2/18, NORTH STREET AKKARAIPETTAI, NAGAPATTINAM.','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
 (3,'cable','3106771064','AGALYA THANGADURAI','9384309289','NO. 4/215, THIDEERKUPPAM, AKKARAIPETTAI, NAGAPATTINAM.','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
 (4,'cable','3121380691','AGATHIYAN GOVINTHASAMY','9123406789','NO.186, KAMARAJ NAGAR, NAGAPATTINAM.','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
@@ -1735,6 +1740,37 @@ insert  into `cable_customers`(`id`,`customer_type`,`customer_id`,`name`,`mobile
 (1636,'cable','3121379766','VISWANATHAN GOVINDASAMY','9323456789','NO. 3/164, SOUTH STREET AKKARAIPETTAI NAGAPATTINAM','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
 (1637,'cable','3133410417','VIYASAN BALAMURUGAN','9987988883','NO. 2/281, NORTH STREET, AKKARAIPETTAI, NAGAPATTINAM','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38'),
 (1638,'cable','3106696710','YELATCHI CHANDRAN','8972526277','NO.Q/25, TATA NAGAR, NAGAPATTINAM','TATA','2026-09-21',NULL,300.00,1,NULL,NULL,NULL,NULL,1,'S01','2026-09-21 14:32:38');
+
+/*Table structure for table `cable_recharges` */
+
+DROP TABLE IF EXISTS `cable_recharges`;
+
+CREATE TABLE `cable_recharges` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `customer_pk` int NOT NULL,
+  `customer_id` varchar(50) NOT NULL,
+  `recharge_year` int NOT NULL,
+  `recharge_month` int NOT NULL,
+  `due_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `paid_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `pending_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `recharge_date` date DEFAULT NULL,
+  `recharge_time` time DEFAULT NULL,
+  `pay_mode` varchar(10) DEFAULT NULL,
+  `paid_date` date DEFAULT NULL,
+  `paid_time` time DEFAULT NULL,
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cable_recharge_month` (`shop_id`,`customer_pk`,`recharge_year`,`recharge_month`),
+  KEY `idx_cable_recharge_pending` (`shop_id`,`pending_amount`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `cable_recharges` */
+
+insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,`recharge_month`,`due_amount`,`paid_amount`,`pending_amount`,`recharge_date`,`recharge_time`,`pay_mode`,`paid_date`,`paid_time`,`uid`,`shop_id`) values 
+(1,1,'101',2026,8,300.00,100.00,200.00,'2026-08-01','13:46:01','upi','2026-09-22','13:46:30',1,'S01'),
+(2,1,'101',2026,9,300.00,50.00,250.00,'2026-09-22','13:46:35','cash','2026-09-22','13:46:46',1,'S01');
 
 /*Table structure for table `company_details` */
 

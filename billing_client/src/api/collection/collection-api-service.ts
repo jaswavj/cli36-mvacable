@@ -7,8 +7,10 @@ export type CollectionMonth = {
   month: string;
   label: string;
   paid: boolean;
+  recharged?: boolean;
   paidDate?: string;
   paidDateIso?: string;
+  rechargeDate?: string;
   payMode?: string;
   due?: number;
   paidAmount?: number;
@@ -24,6 +26,7 @@ export type CollectionPayment = {
   payMode?: string;
   paidDate?: string;
   paidTime?: string;
+  rechargeDate?: string;
   collectedBy?: string;
 };
 
@@ -58,6 +61,7 @@ export type CollectionReceipt = {
 
 export type CollectionLookup = {
   customer: CableCustomer;
+  needsRecharge?: boolean;
   pendingMonths: CollectionMonth[];
   currentMonth: CollectionMonth;
   payments?: CollectionPayment[];
@@ -144,6 +148,9 @@ export class CollectionApiService {
     customerId: string;
     items: { month: string; amount: number; payMode: PayMode }[];
   }) => this.http.post('/v1/cable-collections', payload);
+
+  recharge = (customerId: string) =>
+    this.http.post(`/v1/cable-collections/recharge?customerId=${encodeURIComponent(customerId.trim())}`, {});
 
   printReceipt = (id: number) => this.http.get(`/v1/cable-collections/print/${id}`);
 
