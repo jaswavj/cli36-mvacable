@@ -10,6 +10,8 @@ public class CollectionReportRow {
     private String customerType;
     private String customerId;
     private String customerName;
+    private String mobile;
+    private String area;
     private String month;
     private String monthLabel;
     private String payMode;

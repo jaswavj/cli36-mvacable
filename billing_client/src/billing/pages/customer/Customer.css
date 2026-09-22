@@ -38,7 +38,7 @@
 
 .cust-tab {
   height: 34px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: 8px;
   border: 1.5px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
   background: var(--color-bg-page);

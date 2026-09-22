@@ -26,12 +26,15 @@
   color: var(--color-text-muted);
 }
 
-.col-search-row {
+.col-search-acts {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .col-id {
+  width: 100%;
   height: 42px;
   font-size: 1.05rem;
   font-weight: 700;
@@ -304,6 +307,26 @@
   .col-details,
   .col-row {
     grid-template-columns: 1fr;
+  }
+
+  .col-id {
+    height: 40px;
+    font-size: 0.95rem;
+  }
+
+  .col-search-acts {
+    gap: 6px;
+  }
+
+  .col-search-acts .mst-btn-primary {
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  .col-search-acts .col-details-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
   }
 
 }

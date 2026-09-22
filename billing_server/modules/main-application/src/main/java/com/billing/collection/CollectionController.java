@@ -46,10 +46,11 @@ public class CollectionController {
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String payMode,
             @RequestParam(required = false) String customerType,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return ok(collectionService.report(from, to, userId, payMode, customerType, page, size, currentUser()));
+        return ok(collectionService.report(from, to, userId, payMode, customerType, search, page, size, currentUser()));
     }
 
     @GetMapping("/account")

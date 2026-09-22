@@ -76,6 +76,8 @@ export type CollectionReportRow = {
   customerType?: string;
   customerId?: string;
   customerName?: string;
+  mobile?: string;
+  area?: string;
   month?: string;
   monthLabel?: string;
   payMode?: string;
@@ -174,14 +176,18 @@ export class CollectionApiService {
     payMode?: string,
     customerType?: string,
     page?: number,
-    size?: number
+    size?: number,
+    search?: string
   ) => {
     const params = new URLSearchParams({ from, to });
     if (userId) params.set('userId', String(userId));
     if (payMode) params.set('payMode', payMode);
     if (customerType) params.set('customerType', customerType);
-    if (page) params.set('page', String(page));
-    if (size) params.set('size', String(size));
+    if (search?.trim()) params.set('search', search.trim());
+    const pageNo = Number(page);
+    const sizeNo = Number(size);
+    if (Number.isFinite(pageNo) && pageNo > 0) params.set('page', String(pageNo));
+    if (Number.isFinite(sizeNo) && sizeNo > 0) params.set('size', String(sizeNo));
     return this.http.get(`/v1/cable-collections/report?${params}`);
   };
 

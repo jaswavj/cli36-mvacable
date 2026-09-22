@@ -363,16 +363,16 @@ const CollectionPage: React.FC = () => {
           }}
         >
           <label>Customer ID</label>
-          <div className="col-search-row">
-            <input
-              ref={inputRef}
-              className="mst-inp col-id"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              placeholder="e.g. C001"
-              autoFocus
-              autoComplete="off"
-            />
+          <input
+            ref={inputRef}
+            className="mst-inp col-id"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+            placeholder="e.g. C001"
+            autoFocus
+            autoComplete="off"
+          />
+          <div className="col-search-acts">
             <button className="mst-btn mst-btn-primary" type="submit" disabled={busyMonth === 'lookup'}>
               {busyMonth === 'lookup' ? 'Loading…' : 'Show'}
             </button>

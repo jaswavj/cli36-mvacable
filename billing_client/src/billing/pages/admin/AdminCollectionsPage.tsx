@@ -40,14 +40,16 @@ const AdminCollectionsPage: React.FC = () => {
   const [reason, setReason] = useState('');
 
   const search = async (nextPage = 1) => {
+    const pageNo = Number(nextPage);
+    const safePage = Number.isFinite(pageNo) && pageNo > 0 ? pageNo : 1;
     if (!from || !to) {
       toast.warning('Select from and to date');
       return;
     }
     setBusy(true);
     try {
-      setPage(nextPage);
-      setData(collectionData<CollectionReport>(await collectionApi.report(from, to, undefined, undefined, undefined, nextPage, PAGE_SIZE)));
+      setPage(safePage);
+      setData(collectionData<CollectionReport>(await collectionApi.report(from, to, undefined, undefined, undefined, safePage, PAGE_SIZE)));
     } catch (err) {
       toast.error(collectionError(err, 'Could not load collections'));
     } finally {
@@ -140,7 +142,7 @@ const AdminCollectionsPage: React.FC = () => {
             <input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={search}>
+            <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={() => search(1)}>
               {busy ? 'Loading…' : 'Show'}
             </button>
           </div>

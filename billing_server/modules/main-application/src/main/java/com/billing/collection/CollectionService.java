@@ -372,11 +372,16 @@ public class CollectionService {
 
     public CollectionReportData report(String from, String to, Long userId, String payMode, String customerType,
                                        AppUser user) {
-        return report(from, to, userId, payMode, customerType, null, null, user);
+        return report(from, to, userId, payMode, customerType, null, null, null, user);
     }
 
     public CollectionReportData report(String from, String to, Long userId, String payMode, String customerType,
                                        Integer page, Integer size, AppUser user) {
+        return report(from, to, userId, payMode, customerType, null, page, size, user);
+    }
+
+    public CollectionReportData report(String from, String to, Long userId, String payMode, String customerType,
+                                       String search, Integer page, Integer size, AppUser user) {
         if (user == null || user.getId() == null) {
             throw new RuntimeException("Please login again");
         }
@@ -399,6 +404,7 @@ public class CollectionService {
         }
         StringBuilder sql = new StringBuilder(
                 "SELECT c.id, c.customer_id AS customerId, IFNULL(cu.name,'') AS customerName, " +
+                        "IFNULL(cu.mobile,'') AS mobile, IFNULL(cu.area,'') AS area, " +
                         "IFNULL(cu.customer_type,'') AS customerType, c.collection_month, c.amount, c.pay_mode, " +
                         "DATE_FORMAT(c.paid_date, '%d-%m-%Y') AS paidDate, " +
                         "TIME_FORMAT(c.paid_time, '%h:%i %p') AS paidTime, " +
@@ -423,6 +429,15 @@ public class CollectionService {
         if (!type.isEmpty()) {
             sql.append(" AND LOWER(IFNULL(cu.customer_type,'')) = ?");
             args.add(type);
+        }
+        String term = search == null ? "" : search.trim();
+        if (!term.isEmpty()) {
+            sql.append(" AND (c.customer_id LIKE ? OR IFNULL(cu.name,'') LIKE ? OR IFNULL(cu.mobile,'') LIKE ? OR IFNULL(cu.area,'') LIKE ?)");
+            String like = "%" + term + "%";
+            args.add(like);
+            args.add(like);
+            args.add(like);
+            args.add(like);
         }
         boolean paged = page != null;
         int p = PagedResult.pageOf(page);
@@ -461,6 +476,8 @@ public class CollectionService {
             row.setId(rs.getLong("id"));
             row.setCustomerId(rs.getString("customerId"));
             row.setCustomerName(rs.getString("customerName"));
+            row.setMobile(rs.getString("mobile"));
+            row.setArea(rs.getString("area"));
             row.setCustomerType(rs.getString("customerType"));
             YearMonth month = YearMonth.from(rs.getDate("collection_month").toLocalDate());
             row.setMonth(month.atDay(1).toString());

@@ -6,6 +6,8 @@ import {
   collectionApi,
   collectionData,
   collectionError,
+  type CollectionReport,
+  type CollectionReportRow,
   type PendingCustomer,
   type PendingList,
 } from '../../../api/collection/collection-api-service';
@@ -31,14 +33,18 @@ const monthStartIso = () => {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`;
 };
 
-type ListTab = 'active' | 'pending' | 'connection' | 'disconnection';
+type ListTab = 'active' | 'pending' | 'connection' | 'disconnection' | 'recharge';
 
 const TABS: { id: ListTab; label: string }[] = [
   { id: 'active', label: 'Active Customers' },
   { id: 'pending', label: 'Pending Payment' },
   { id: 'connection', label: 'New Connection' },
   { id: 'disconnection', label: 'Disconnection' },
+  { id: 'recharge', label: 'Recharge Date' },
 ];
+
+const payLabel = (mode?: string) => (mode === 'upi' ? 'UPI' : mode === 'cash' ? 'Cash' : mode || '—');
+const isDatedTab = (tab: ListTab) => tab === 'connection' || tab === 'disconnection' || tab === 'recharge';
 
 const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : 'Cable');
 
@@ -80,6 +86,8 @@ const ActiveCustomerListPage: React.FC = () => {
   const [pendingRows, setPendingRows] = useState<PendingCustomer[]>([]);
   const [connectionRows, setConnectionRows] = useState<CableCustomer[]>([]);
   const [disconnectRows, setDisconnectRows] = useState<CableCustomer[]>([]);
+  const [rechargeRows, setRechargeRows] = useState<CollectionReportRow[]>([]);
+  const [rechargeTotal, setRechargeTotal] = useState(0);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -147,9 +155,40 @@ const ActiveCustomerListPage: React.FC = () => {
     }
   };
 
+  const refreshRecharge = async (from = fromDate, to = toDate, nextPage = page) => {
+    if (!from || !to) {
+      toast.warning('Select from and to date');
+      return;
+    }
+    if (to < from) {
+      toast.warning('To date cannot be before from date');
+      return;
+    }
+    try {
+      const data = collectionData<CollectionReport>(
+        await collectionApi.report(
+          from,
+          to,
+          undefined,
+          undefined,
+          typeFilter || undefined,
+          nextPage,
+          PAGE_SIZE,
+          search
+        )
+      );
+      setRechargeRows(data.rows || []);
+      setTotal(data.count || 0);
+      setRechargeTotal(Number(data.totalAmount || 0));
+    } catch (err) {
+      toast.error(collectionError(err, 'Could not load recharge report'));
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       if (tab === 'pending') refreshPending();
+      else if (tab === 'recharge') refreshRecharge();
       else if (tab === 'connection' || tab === 'disconnection') refreshDated(tab);
       else refresh();
     }, search ? 300 : 0);
@@ -182,7 +221,9 @@ const ActiveCustomerListPage: React.FC = () => {
         ? `${total} new connections`
         : tab === 'disconnection'
           ? `${total} disconnected`
-          : `${total} active`;
+          : tab === 'recharge'
+            ? `${total} recharges · ₹ ${rechargeTotal.toFixed(0)}`
+            : `${total} active`;
 
   const changeTab = (next: ListTab) => {
     setTab(next);
@@ -286,7 +327,7 @@ const ActiveCustomerListPage: React.FC = () => {
 
   const downloadTab = async () => {
     if (downloading) return;
-    if ((tab === 'connection' || tab === 'disconnection') && (!fromDate || !toDate)) {
+    if (isDatedTab(tab) && (!fromDate || !toDate)) {
       toast.warning('Select from and to date');
       return;
     }
@@ -319,6 +360,44 @@ const ActiveCustomerListPage: React.FC = () => {
           })),
           'Pending Payment',
           `pending-payment-${todayIso()}.xlsx`
+        );
+      } else if (tab === 'recharge') {
+        const list = await fetchAllPages<CollectionReportRow>(async (nextPage) => {
+          const data = collectionData<CollectionReport>(
+            await collectionApi.report(
+              fromDate,
+              toDate,
+              undefined,
+              undefined,
+              typeFilter || undefined,
+              nextPage,
+              100,
+              search
+            )
+          );
+          return { rows: data.rows, total: data.count };
+        });
+        if (!list.length) {
+          toast.warning('No recharges to download');
+          return;
+        }
+        saveXlsx(
+          list.map((row, i) => ({
+            '#': i + 1,
+            Type: typeLabel(row.customerType),
+            'Customer ID': row.customerId || '',
+            Name: row.customerName || '',
+            Mobile: row.mobile || '',
+            Area: row.area || '',
+            Month: row.monthLabel || '',
+            'Recharge Date': row.paidDate || '',
+            Time: row.paidTime || '',
+            Mode: payLabel(row.payMode),
+            Amount: Number(row.amount || 0),
+            User: row.collectedBy || '',
+          })),
+          'Recharge Date',
+          `recharge-date-${fromDate}-to-${toDate}.xlsx`
         );
       } else if (tab === 'connection' || tab === 'disconnection') {
         const list = await fetchAllPages<CableCustomer>(async (nextPage) =>
@@ -386,7 +465,7 @@ const ActiveCustomerListPage: React.FC = () => {
       toast.success('Excel downloaded');
     } catch (err) {
       toast.error(
-        tab === 'pending'
+        tab === 'pending' || tab === 'recharge'
           ? collectionError(err, 'Could not download Excel')
           : customerError(err, 'Could not download Excel')
       );
@@ -400,6 +479,7 @@ const ActiveCustomerListPage: React.FC = () => {
     if (tab === 'pending') return 'No pending payment customers';
     if (tab === 'connection') return 'No new connections in this date range';
     if (tab === 'disconnection') return 'No disconnections in this date range';
+    if (tab === 'recharge') return 'No recharges in this date range';
     return 'No active customers yet';
   };
 
@@ -439,7 +519,9 @@ const ActiveCustomerListPage: React.FC = () => {
                     ? 'fas fa-plug'
                     : tab === 'disconnection'
                       ? 'fas fa-unlink'
-                      : 'fas fa-list'
+                      : tab === 'recharge'
+                        ? 'fas fa-calendar-check'
+                        : 'fas fa-list'
               }
             />
             {tab === 'pending'
@@ -448,17 +530,19 @@ const ActiveCustomerListPage: React.FC = () => {
                 ? ' New Connections'
                 : tab === 'disconnection'
                   ? ' Disconnected Customers'
-                  : ' Customers'}
+                  : tab === 'recharge'
+                    ? ' Recharge Date Report'
+                    : ' Customers'}
             <em className="trp-count">{total}</em>
           </span>
-          {(tab === 'connection' || tab === 'disconnection') && (
+          {isDatedTab(tab) && (
             <div className="cust-dates">
               <div className="mst-fg">
-                <label>From Date</label>
+                <label>{tab === 'recharge' ? 'From Recharge Date' : 'From Date'}</label>
                 <input className="mst-inp" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
               </div>
               <div className="mst-fg">
-                <label>To Date</label>
+                <label>{tab === 'recharge' ? 'To Recharge Date' : 'To Date'}</label>
                 <input className="mst-inp" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
               </div>
               <button
@@ -466,7 +550,8 @@ const ActiveCustomerListPage: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setPage(1);
-                  refreshDated(tab, fromDate, toDate, 1);
+                  if (tab === 'recharge') refreshRecharge(fromDate, toDate, 1);
+                  else refreshDated(tab, fromDate, toDate, 1);
                 }}
               >
                 Filter
@@ -538,6 +623,15 @@ const ActiveCustomerListPage: React.FC = () => {
                     <th style={{ width: 110 }}>Action</th>
                   </>
                 )}
+                {tab === 'recharge' && (
+                  <>
+                    <th>Month</th>
+                    <th>Recharge Date</th>
+                    <th>Mode</th>
+                    <th className="num">Amount</th>
+                    <th style={{ width: 90 }}>Action</th>
+                  </>
+                )}
                 {tab === 'active' && (
                   <>
                     <th>Joined</th>
@@ -548,7 +642,7 @@ const ActiveCustomerListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {currentRows.length === 0 && (
+              {(tab === 'recharge' ? rechargeRows.length : currentRows.length) === 0 && (
                 <tr>
                   <td colSpan={10} className="mst-empty">
                     <i className="fas fa-users" />
@@ -639,6 +733,37 @@ const ActiveCustomerListPage: React.FC = () => {
                       >
                         Reconnect
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              {tab === 'recharge' &&
+                rechargeRows.map((row, i) => (
+                  <tr key={row.id}>
+                    <td>{(page - 1) * PAGE_SIZE + i + 1}</td>
+                    <td>
+                      <TypePill type={row.customerType} />
+                    </td>
+                    <td>
+                      <strong>{row.customerId}</strong>
+                    </td>
+                    <td>{row.customerName || '—'}</td>
+                    <td className="trp-phone">{show(row.mobile)}</td>
+                    <td>{show(row.area)}</td>
+                    <td>{show(row.monthLabel)}</td>
+                    <td>
+                      {show(row.paidDate)}
+                      {row.paidTime ? ` ${row.paidTime}` : ''}
+                    </td>
+                    <td>{payLabel(row.payMode)}</td>
+                    <td className="num">
+                      <strong>₹ {Number(row.amount || 0).toFixed(0)}</strong>
+                    </td>
+                    <td>
+                      {row.customerId && (
+                        <button className="cust-collect-btn" type="button" onClick={() => openCollect(row.customerId!)}>
+                          Collect
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
