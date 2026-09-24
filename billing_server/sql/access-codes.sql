@@ -8,7 +8,8 @@ REPLACE INTO user_modules (id, module_name) VALUES
   (4, 'Collection report'),
   (5, 'Expense'),
   (6, 'Admin'),
-  (7, 'Dashboard');
+  (7, 'Dashboard'),
+  (8, 'Stock Management');
 
 /* If old Expense was module 9, move those permissions to 5 */
 INSERT INTO user_permission (module_id, uid, date, time)
@@ -36,3 +37,9 @@ SELECT 7, p.uid, CURDATE(), CURTIME()
 FROM user_permission p
 WHERE p.module_id = 6
   AND NOT EXISTS (SELECT 1 FROM user_permission x WHERE x.module_id = 7 AND x.uid = p.uid);
+
+INSERT INTO user_permission (module_id, uid, date, time)
+SELECT 8, p.uid, CURDATE(), CURTIME()
+FROM user_permission p
+WHERE p.module_id = 6
+  AND NOT EXISTS (SELECT 1 FROM user_permission x WHERE x.module_id = 8 AND x.uid = p.uid);

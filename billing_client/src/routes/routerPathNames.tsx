@@ -73,6 +73,8 @@ export const routerPathNames = {
     companyDetails: '/app/admin/company-details',
     editLog: '/app/admin/edit-log',
     editCollection: '/app/admin/collections',
+    editStockSale: '/app/admin/stock-sales',
+    stockSaleLog: '/app/admin/stock-sale-log',
     editBill: '/app/admin/edit-bill',
     changePaymentType: '/app/admin/change-payment-type',
     exchange: '/app/admin/exchange',
@@ -81,6 +83,11 @@ export const routerPathNames = {
     paymentTypeChangeReport: '/app/admin/payment-type-change-report',
     exchangeReport: '/app/admin/exchange-report',
   },
+  stock: {
+    products: '/app/stock/products',
+    move: '/app/stock/move',
+    salesReport: '/app/stock/sales-report',
+  },
   expense: '/app/expense',
   expensePages: {
     type: '/app/expense/type',
@@ -88,4 +95,4 @@ export const routerPathNames = {
     report: '/app/expense/report',
   },
   orderList: '/app/order-list',
-};
+} as const;

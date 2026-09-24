@@ -1,0 +1,21 @@
+.stk-fit-wrap {
+  overflow-x: hidden;
+}
+
+.stk-fit-wrap .mst-table,
+.stk-fit-wrap .trp-table {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.stk-fit-wrap .mst-table th,
+.stk-fit-wrap .mst-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk-fit-wrap .mst-empty {
+  white-space: normal;
+}

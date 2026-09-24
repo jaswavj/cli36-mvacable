@@ -18,6 +18,7 @@ export const MENU_MODULE = {
   expense: 5,
   admin: 6,
   dashboard: 7,
+  stock: 8,
 } as const;
 
 export const filterMenuByModules = (items: MenuItemConfig[], moduleIds: number[]): MenuItemConfig[] => {
@@ -72,6 +73,17 @@ export const billingMenuConfig: MenuItemConfig[] = [
     moduleId: MENU_MODULE.expense,
   },
   {
+    id: 'stock',
+    name: 'Stock Management',
+    icon: 'fas fa-boxes',
+    moduleId: MENU_MODULE.stock,
+    submenus: [
+      { id: 'stock-products', name: 'Add Product', url: routerPathNames.stock.products, icon: 'fas fa-box' },
+      { id: 'stock-move', name: 'Sale / Add Stock', url: routerPathNames.stock.move, icon: 'fas fa-exchange-alt' },
+      { id: 'stock-sales-report', name: 'Sale Report', url: routerPathNames.stock.salesReport, icon: 'fas fa-chart-bar' },
+    ],
+  },
+  {
     id: 'admin',
     name: 'Admin',
     icon: 'fas fa-chart-pie',
@@ -82,6 +94,8 @@ export const billingMenuConfig: MenuItemConfig[] = [
       { id: 'permission', name: 'Edit User / Permission', url: routerPathNames.users.permission, icon: 'fas fa-user-edit' },
       { id: 'edit-collection', name: 'Edit Collection', url: routerPathNames.admin.editCollection, icon: 'fas fa-edit' },
       { id: 'edit-log', name: 'Edit Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
+      { id: 'edit-stock-sale', name: 'Edit Sale', url: routerPathNames.admin.editStockSale, icon: 'fas fa-box-open' },
+      { id: 'stock-sale-log', name: 'Sale Edit Log', url: routerPathNames.admin.stockSaleLog, icon: 'fas fa-clipboard-list' },
     ],
   },
 ];
@@ -108,6 +122,7 @@ export const moduleIdForPath = (pathname: string): number | null => {
   if (pathname.includes('/app/collection/report')) return MENU_MODULE.collectionReport;
   if (pathname.includes('/app/collection')) return MENU_MODULE.collection;
   if (pathname.includes('/app/expense')) return MENU_MODULE.expense;
+  if (pathname.includes('/app/stock')) return MENU_MODULE.stock;
   if (pathname.includes('/app/users')) return MENU_MODULE.admin;
   if (pathname.includes('/app/admin')) return MENU_MODULE.admin;
   return null;

@@ -25,6 +25,11 @@ const CompanyDetailsPage = lazy(() => import('../billing/pages/admin/CompanyDeta
 const EditLogPage = lazy(() => import('../billing/pages/admin/EditLogPage'));
 const AdminCollectionsPage = lazy(() => import('../billing/pages/admin/AdminCollectionsPage'));
 const SalonExpensePage = lazy(() => import('../billing/pages/expense/SalonExpensePage'));
+const StockProductPage = lazy(() => import('../billing/pages/stock/StockProductPage'));
+const StockMovePage = lazy(() => import('../billing/pages/stock/StockMovePage'));
+const StockSaleReportPage = lazy(() => import('../billing/pages/stock/StockSaleReportPage'));
+const AdminStockSalesPage = lazy(() => import('../billing/pages/admin/AdminStockSalesPage'));
+const AdminStockSaleLogPage = lazy(() => import('../billing/pages/admin/AdminStockSaleLogPage'));
 
 const guard = (element: ReactElement) => <AuthGuard component={element} />;
 
@@ -51,11 +56,16 @@ const AppRouter = () => {
                 <Route path="collection" element={<CollectionPage />} />
                 <Route path="collection/report" element={<CollectionReportPage />} />
                 <Route path="expense" element={<SalonExpensePage />} />
+                <Route path="stock/products" element={<StockProductPage />} />
+                <Route path="stock/move" element={<StockMovePage />} />
+                <Route path="stock/sales-report" element={<StockSaleReportPage />} />
                 <Route path="users/create" element={<CreateUserPage />} />
                 <Route path="users/permission" element={<ModulePermissionPage />} />
                 <Route path="admin/company-details" element={<CompanyDetailsPage />} />
                 <Route path="admin/collections" element={<AdminCollectionsPage />} />
                 <Route path="admin/edit-log" element={<EditLogPage />} />
+                <Route path="admin/stock-sales" element={<AdminStockSalesPage />} />
+                <Route path="admin/stock-sale-log" element={<AdminStockSaleLogPage />} />
               </Route>
               <Route index element={<DefaultAppRedirect />} />
             </Route>

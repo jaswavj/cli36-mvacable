@@ -1917,6 +1917,104 @@ CREATE TABLE `special_permission` (
 insert  into `special_permission`(`id`,`content`) values 
 (1,'allow to Zero stock billing ');
 
+/*Table structure for table `stock_ins` */
+
+DROP TABLE IF EXISTS `stock_ins`;
+
+CREATE TABLE `stock_ins` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `qty` decimal(12,3) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `notes` text,
+  `entry_date` date NOT NULL,
+  `entry_time` time NOT NULL,
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_in_shop` (`shop_id`,`entry_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `stock_ins` */
+
+insert  into `stock_ins`(`id`,`product_id`,`qty`,`rate`,`notes`,`entry_date`,`entry_time`,`uid`,`shop_id`) values 
+(1,1,10.000,1000.00,'aa','2026-09-24','14:27:47',1,'S01');
+
+/*Table structure for table `stock_products` */
+
+DROP TABLE IF EXISTS `stock_products`;
+
+CREATE TABLE `stock_products` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
+  `rate` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `notes` text,
+  `qty` decimal(12,3) NOT NULL DEFAULT '0.000',
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_product_shop` (`shop_id`,`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `stock_products` */
+
+insert  into `stock_products`(`id`,`name`,`rate`,`notes`,`qty`,`uid`,`shop_id`) values 
+(1,'Remotes',1000.00,'sum',10.000,1,'S01');
+
+/*Table structure for table `stock_sale_logs` */
+
+DROP TABLE IF EXISTS `stock_sale_logs`;
+
+CREATE TABLE `stock_sale_logs` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `sale_id` int NOT NULL,
+  `action` varchar(20) NOT NULL,
+  `product_id` int DEFAULT NULL,
+  `old_qty` decimal(12,3) DEFAULT NULL,
+  `new_qty` decimal(12,3) DEFAULT NULL,
+  `old_rate` decimal(12,2) DEFAULT NULL,
+  `new_rate` decimal(12,2) DEFAULT NULL,
+  `old_amount` decimal(12,2) DEFAULT NULL,
+  `new_amount` decimal(12,2) DEFAULT NULL,
+  `reason` text,
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  `log_date` date DEFAULT NULL,
+  `log_time` time DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_sale_log` (`shop_id`,`log_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `stock_sale_logs` */
+
+insert  into `stock_sale_logs`(`id`,`sale_id`,`action`,`product_id`,`old_qty`,`new_qty`,`old_rate`,`new_rate`,`old_amount`,`new_amount`,`reason`,`uid`,`shop_id`,`log_date`,`log_time`) values 
+(1,1,'cancel',1,1.000,1.000,1000.00,1000.00,1000.00,1000.00,'s',1,'S01','2026-09-24','14:28:20');
+
+/*Table structure for table `stock_sales` */
+
+DROP TABLE IF EXISTS `stock_sales`;
+
+CREATE TABLE `stock_sales` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `qty` decimal(12,3) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `notes` text,
+  `sale_date` date NOT NULL,
+  `sale_time` time NOT NULL,
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  `is_cancelled` tinyint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_sale_shop` (`shop_id`,`sale_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `stock_sales` */
+
+insert  into `stock_sales`(`id`,`product_id`,`qty`,`rate`,`amount`,`notes`,`sale_date`,`sale_time`,`uid`,`shop_id`,`is_cancelled`) values 
+(1,1,1.000,1000.00,1000.00,'a','2026-09-24','14:28:02',1,'S01',1);
+
 /*Table structure for table `trans_bill` */
 
 DROP TABLE IF EXISTS `trans_bill`;
@@ -2005,7 +2103,7 @@ CREATE TABLE `user_modules` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `module_name` varchar(255) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=latin1;
 
 /*Data for the table `user_modules` */
 
@@ -2016,7 +2114,8 @@ insert  into `user_modules`(`id`,`module_name`) values
 (4,'Collection report'),
 (5,'Expense'),
 (6,'Admin'),
-(7,'Dashboard');
+(7,'Dashboard'),
+(8,'Stock management');
 
 /*Table structure for table `user_permission` */
 
@@ -2031,18 +2130,19 @@ CREATE TABLE `user_permission` (
   PRIMARY KEY (`id`),
   KEY `mod` (`module_id`),
   KEY `uid` (`uid`)
-) ENGINE=InnoDB AUTO_INCREMENT=190 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=198 DEFAULT CHARSET=latin1;
 
 /*Data for the table `user_permission` */
 
 insert  into `user_permission`(`id`,`module_id`,`uid`,`date`,`time`) values 
-(163,1,1,'2026-09-11','21:48:02'),
-(168,2,1,'2026-09-11','21:48:02'),
-(171,3,1,'2026-09-11','22:05:49'),
-(176,4,1,'2026-09-11','22:05:49'),
-(179,5,1,'2026-09-11','22:05:49'),
-(180,6,1,'2026-09-11','22:10:57'),
-(189,7,1,'2026-09-19','22:10:57');
+(190,1,1,'2026-09-24','14:25:42'),
+(191,2,1,'2026-09-24','14:25:42'),
+(192,3,1,'2026-09-24','14:25:42'),
+(193,4,1,'2026-09-24','14:25:42'),
+(194,5,1,'2026-09-24','14:25:42'),
+(195,6,1,'2026-09-24','14:25:42'),
+(196,7,1,'2026-09-24','14:25:42'),
+(197,8,1,'2026-09-24','14:25:42');
 
 /*Table structure for table `user_special_permission` */
 
