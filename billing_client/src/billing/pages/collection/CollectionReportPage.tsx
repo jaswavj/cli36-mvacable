@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
 import {
   collectionApi,
@@ -25,6 +26,7 @@ const today = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const n = (v?: number) => Number(v || 0).toFixed(0);
+const show = (v?: string) => (v && v.trim() ? v : '—');
 const payLabel = (mode?: string) => (mode === 'upi' ? 'UPI' : mode === 'cash' ? 'Cash' : mode || '—');
 const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : type === 'cable' ? 'Cable' : type || '—');
 const userLabel = (u: UserOpt) => u.name || u.fullName || u.userName || `User ${u.id}`;
@@ -41,6 +43,7 @@ const CollectionReportPage: React.FC = () => {
   const [account, setAccount] = useState<AccountReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<CollectionReportRow | null>(null);
 
   useEffect(() => {
     usersApi
@@ -199,7 +202,7 @@ const CollectionReportPage: React.FC = () => {
             <div className="col-rep-list">
               {rows.length === 0 && <div className="mst-empty">No collections found for the selected filters.</div>}
               {rows.map((row) => (
-                <article key={row.id} className="col-rep-item">
+                <article key={row.id} className="col-rep-item col-rep-click" onClick={() => setSelected(row)}>
                   <div className="col-rep-item-h">
                     <strong>{row.customerName || row.customerId || '—'}</strong>
                     <span className="col-rep-amt">₹ {n(row.amount)}</span>
@@ -218,6 +221,7 @@ const CollectionReportPage: React.FC = () => {
                     </span>
                     <span>{row.collectedBy || '—'}</span>
                   </div>
+                  {row.notes?.trim() ? <div className="col-rep-note clip">{row.notes}</div> : null}
                 </article>
               ))}
               {rows.length > 0 && (
@@ -240,19 +244,20 @@ const CollectionReportPage: React.FC = () => {
                     <th>Month</th>
                     <th>Mode</th>
                     <th className="num">Amount</th>
+                    <th>Notes</th>
                     <th>Collected By</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="mst-empty">
+                      <td colSpan={11} className="mst-empty">
                         No collections found for the selected filters.
                       </td>
                     </tr>
                   )}
                   {rows.map((row, i) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className="mst-click-row" onClick={() => setSelected(row)}>
                       <td>{i + 1}</td>
                       <td>{row.paidDate || '—'}</td>
                       <td>{row.paidTime || '—'}</td>
@@ -270,6 +275,9 @@ const CollectionReportPage: React.FC = () => {
                       <td className="num">
                         <strong>₹ {n(row.amount)}</strong>
                       </td>
+                      <td className="col-rep-notes-cell" title={row.notes?.trim() || ''}>
+                        {row.notes?.trim() || '—'}
+                      </td>
                       <td>{row.collectedBy || '—'}</td>
                     </tr>
                   ))}
@@ -281,7 +289,7 @@ const CollectionReportPage: React.FC = () => {
                       <td className="num">
                         <strong>₹ {n(data.totalAmount)}</strong>
                       </td>
-                      <td />
+                      <td colSpan={2} />
                     </tr>
                   )}
                 </tbody>
@@ -291,6 +299,71 @@ const CollectionReportPage: React.FC = () => {
           </div>
         </>
       )}
+
+      {selected &&
+        createPortal(
+          <div className="cust-modal col-recharge-overlay" onClick={() => setSelected(null)}>
+            <div className="cust-modal-box col-confirm" onClick={(e) => e.stopPropagation()}>
+              <div className="cust-modal-h">
+                <div>
+                  <h3>Collection Details</h3>
+                  <p>
+                    {show(selected.paidDate)} {show(selected.paidTime)}
+                  </p>
+                </div>
+                <button className="mst-icon-btn" type="button" title="Close" onClick={() => setSelected(null)}>
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+              <div className="cust-modal-b">
+                <div className="cust-detail">
+                  <span>Customer</span>
+                  <strong>
+                    {show(selected.customerName)} ({show(selected.customerId)})
+                  </strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Type</span>
+                  <strong>{typeLabel(selected.customerType)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Month</span>
+                  <strong>{show(selected.monthLabel)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Payment</span>
+                  <strong>{payLabel(selected.payMode)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Amount</span>
+                  <strong>₹ {n(selected.amount)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Collected By</span>
+                  <strong>{show(selected.collectedBy)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Mobile</span>
+                  <strong>{show(selected.mobile)}</strong>
+                </div>
+                <div className="cust-detail">
+                  <span>Area</span>
+                  <strong>{show(selected.area)}</strong>
+                </div>
+                <div className="cust-detail span-2">
+                  <span>Notes</span>
+                  <strong>{show(selected.notes)}</strong>
+                </div>
+              </div>
+              <div className="cust-modal-f">
+                <button className="mst-btn mst-btn-outline" type="button" onClick={() => setSelected(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {tab === 'account' && account && (
         <>

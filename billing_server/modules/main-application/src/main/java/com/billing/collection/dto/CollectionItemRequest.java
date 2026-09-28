@@ -7,4 +7,5 @@ public class CollectionItemRequest {
     private String month;
     private Double amount;
     private String payMode;
+    private String notes;
 }

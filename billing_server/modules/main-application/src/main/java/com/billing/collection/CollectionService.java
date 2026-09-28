@@ -86,6 +86,7 @@ public class CollectionService {
             jdbcTemplate.execute("ALTER TABLE cable_collections DROP INDEX uk_cable_collection_month");
         }
         ensureColumn("due_amount", "DECIMAL(12,2) DEFAULT NULL AFTER amount");
+        ensureColumn("notes", "TEXT AFTER shop_id");
         ensureColumn("is_cancelled", "TINYINT NOT NULL DEFAULT 0 AFTER notes");
         ensureRechargeTable();
         jdbcTemplate.execute(
@@ -186,15 +187,32 @@ public class CollectionService {
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> pending.add(rechargeStatus(entry.getValue())));
         data.setPendingMonths(pending);
+        boolean pendingThroughCurrent = recharges.entrySet().stream()
+                .anyMatch(entry -> !entry.getKey().isAfter(current) && entry.getValue().pendingAmount() > 0.009);
+        boolean canAdvance = currentRecharge != null && !pendingThroughCurrent;
+        YearMonth latest = current;
+        for (YearMonth month : recharges.keySet()) {
+            if (month.isAfter(latest)) {
+                latest = month;
+            }
+        }
+        data.setCanAdvanceRecharge(canAdvance);
+        data.setNextMonth(canAdvance ? emptyMonth(latest.plusMonths(1), due) : null);
         data.setPayments(paymentRows(customer.getId(), user.shopId()));
         return data;
     }
 
     @Transactional
     public CollectionLookupData rechargeCurrentMonth(String customerId, AppUser user) {
+        return rechargeMonth(customerId, null, user);
+    }
+
+    @Transactional
+    public CollectionLookupData rechargeMonth(String customerId, String monthRaw, AppUser user) {
         requireShopUser(user);
         CableCustomerRow customer = cableCustomerService.findActiveByCustomerId(user, customerId);
         YearMonth current = YearMonth.now();
+        YearMonth target = monthRaw == null || monthRaw.isBlank() ? current : parseMonth(monthRaw);
         double due = nz(customer.getMonthlyAmount());
         if (due <= 0) {
             due = nz(lastAmount(customer.getId(), user.shopId()));
@@ -202,15 +220,42 @@ public class CollectionService {
         if (due <= 0) {
             throw new RuntimeException("Set monthly amount before recharge");
         }
-        if (!hasRecharge(customer.getId(), user.shopId(), current)) {
+        Map<YearMonth, RechargeRow> recharges = rechargesForCustomer(customer.getId(), user.shopId());
+        if (target.isAfter(current)) {
+            RechargeRow currentRecharge = recharges.get(current);
+            if (currentRecharge == null) {
+                throw new RuntimeException("Recharge " + current.format(MONTH_LABEL) + " first");
+            }
+            boolean pendingThroughCurrent = recharges.entrySet().stream()
+                    .anyMatch(entry -> !entry.getKey().isAfter(current) && entry.getValue().pendingAmount() > 0.009);
+            if (pendingThroughCurrent) {
+                throw new RuntimeException("Collect pending months first");
+            }
+            YearMonth latest = current;
+            for (YearMonth month : recharges.keySet()) {
+                if (month.isAfter(latest)) {
+                    latest = month;
+                }
+            }
+            YearMonth expected = latest.plusMonths(1);
+            if (!target.equals(expected)) {
+                throw new RuntimeException("Recharge " + expected.format(MONTH_LABEL) + " first");
+            }
+            if (target.isAfter(current.plusMonths(12))) {
+                throw new RuntimeException("Cannot recharge more than 12 months ahead");
+            }
+        } else if (!target.equals(current)) {
+            throw new RuntimeException("Invalid recharge month");
+        }
+        if (!hasRecharge(customer.getId(), user.shopId(), target)) {
             jdbcTemplate.update(
                     "INSERT INTO cable_recharges (customer_pk, customer_id, recharge_year, recharge_month, " +
                             "due_amount, paid_amount, pending_amount, recharge_date, recharge_time, uid, shop_id) " +
                             "VALUES (?,?,?,?,?,0,?,CURDATE(),CURTIME(),?,?)",
                     customer.getId(),
                     customer.getCustomerId(),
-                    current.getYear(),
-                    current.getMonthValue(),
+                    target.getYear(),
+                    target.getMonthValue(),
                     round2(due),
                     round2(due),
                     user.getId(),
@@ -233,7 +278,6 @@ public class CollectionService {
             throw new RuntimeException("Select at least one month");
         }
         CableCustomerRow customer = cableCustomerService.findActiveByCustomerId(user, request.getCustomerId());
-        YearMonth current = YearMonth.now();
         double due = nz(customer.getMonthlyAmount());
         Map<YearMonth, RechargeRow> recharges = rechargesForCustomer(customer.getId(), shopId);
         Set<YearMonth> unique = new LinkedHashSet<>();
@@ -250,7 +294,10 @@ public class CollectionService {
                 throw new RuntimeException("Enter a valid amount");
             }
             YearMonth month = parseMonth(item.getMonth());
-            if (month.isAfter(current) || !inService(month, customer)) {
+            if (!inService(month, customer)) {
+                throw new RuntimeException("Invalid collection month");
+            }
+            if (month.isAfter(YearMonth.now().plusMonths(12))) {
                 throw new RuntimeException("Invalid collection month");
             }
             if (!unique.add(month)) {
@@ -271,11 +318,12 @@ public class CollectionService {
             if (saveAmount <= 0) {
                 throw new RuntimeException(month.format(MONTH_LABEL) + " is already fully collected");
             }
+            String notes = item.getNotes() == null ? "" : item.getNotes().trim();
             KeyHolder keys = new GeneratedKeyHolder();
             jdbcTemplate.update(con -> {
                 PreparedStatement ps = con.prepareStatement(
                         "INSERT INTO cable_collections (customer_pk, customer_id, collection_month, amount, due_amount, pay_mode, " +
-                                "paid_date, paid_time, uid, shop_id) VALUES (?,?,?,?,?,?,CURDATE(),CURTIME(),?,?)",
+                                "notes, paid_date, paid_time, uid, shop_id) VALUES (?,?,?,?,?,?,?,CURDATE(),CURTIME(),?,?)",
                         Statement.RETURN_GENERATED_KEYS
                 );
                 ps.setLong(1, customer.getId());
@@ -284,8 +332,9 @@ public class CollectionService {
                 ps.setDouble(4, saveAmount);
                 ps.setDouble(5, monthDue);
                 ps.setString(6, payMode);
-                ps.setLong(7, user.getId());
-                ps.setString(8, shopId);
+                ps.setString(7, notes);
+                ps.setLong(8, user.getId());
+                ps.setString(9, shopId);
                 return ps;
             }, keys);
             upsertRecharge(
@@ -406,6 +455,7 @@ public class CollectionService {
                 "SELECT c.id, c.customer_id AS customerId, IFNULL(cu.name,'') AS customerName, " +
                         "IFNULL(cu.mobile,'') AS mobile, IFNULL(cu.area,'') AS area, " +
                         "IFNULL(cu.customer_type,'') AS customerType, c.collection_month, c.amount, c.pay_mode, " +
+                        "IFNULL(c.notes,'') AS notes, " +
                         "DATE_FORMAT(c.paid_date, '%d-%m-%Y') AS paidDate, " +
                         "TIME_FORMAT(c.paid_time, '%h:%i %p') AS paidTime, " +
                         "IFNULL(NULLIF(u.fullName,''), u.user_name) AS collectedBy " +
@@ -484,6 +534,7 @@ public class CollectionService {
             row.setMonthLabel(month.format(MONTH_LABEL));
             row.setAmount(round2(rs.getDouble("amount")));
             row.setPayMode(rs.getString("pay_mode"));
+            row.setNotes(rs.getString("notes"));
             row.setPaidDate(rs.getString("paidDate"));
             row.setPaidTime(rs.getString("paidTime"));
             row.setCollectedBy(rs.getString("collectedBy"));
@@ -1135,8 +1186,12 @@ public class CollectionService {
         if (raw == null || raw.isBlank()) {
             throw new RuntimeException("Collection month is required");
         }
+        String value = raw.trim();
         try {
-            return YearMonth.from(LocalDate.parse(raw.trim()));
+            if (value.length() == 7) {
+                return YearMonth.parse(value);
+            }
+            return YearMonth.from(LocalDate.parse(value));
         } catch (DateTimeParseException ex) {
             throw new RuntimeException("Invalid collection month");
         }

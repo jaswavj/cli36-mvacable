@@ -89,8 +89,8 @@ public class CollectionController {
     }
 
     @PostMapping("/recharge")
-    public ResponseDO recharge(@RequestParam String customerId) {
-        return ok(collectionService.rechargeCurrentMonth(customerId, currentUser()));
+    public ResponseDO recharge(@RequestParam String customerId, @RequestParam(required = false) String month) {
+        return ok(collectionService.rechargeMonth(customerId, month, currentUser()));
     }
 
     @GetMapping("/print/{id}")

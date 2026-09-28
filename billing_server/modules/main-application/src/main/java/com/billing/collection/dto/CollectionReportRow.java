@@ -17,4 +17,5 @@ public class CollectionReportRow {
     private String payMode;
     private Double amount;
     private String collectedBy;
+    private String notes;
 }

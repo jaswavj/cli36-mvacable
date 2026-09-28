@@ -63,14 +63,19 @@ CREATE TABLE `cable_collections` (
   `is_cancelled` tinyint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `idx_cable_collection_month` (`shop_id`,`customer_pk`,`collection_month`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_collections` */
 
 insert  into `cable_collections`(`id`,`customer_pk`,`customer_id`,`collection_month`,`amount`,`due_amount`,`pay_mode`,`paid_date`,`paid_time`,`uid`,`shop_id`,`notes`,`is_cancelled`) values 
 (1,1,'101','2026-08-01',50.00,300.00,'cash','2026-09-22','13:46:26',1,'S01',NULL,0),
 (2,1,'101','2026-08-01',50.00,300.00,'upi','2026-09-22','13:46:30',1,'S01',NULL,0),
-(3,1,'101','2026-09-01',50.00,300.00,'cash','2026-09-22','13:46:46',1,'S01',NULL,0);
+(3,1,'101','2026-09-01',50.00,300.00,'cash','2026-09-22','13:46:46',1,'S01',NULL,0),
+(4,1,'101','2026-08-01',200.00,300.00,'cash','2026-09-28','14:14:39',1,'S01','summa summa summa summa summa \r\nsumma ',0),
+(5,1,'101','2026-09-01',250.00,300.00,'cash','2026-09-28','14:19:00',1,'S01','sssss',0),
+(6,1,'101','2026-10-01',300.00,300.00,'cash','2026-09-28','14:19:08',1,'S01','',0),
+(7,2,'3133675126','2026-09-01',300.00,300.00,'upi','2026-09-28','14:21:10',1,'S01','x',0),
+(8,2,'3133675126','2026-10-01',300.00,300.00,'cash','2026-09-28','14:21:15',1,'S01','',0);
 
 /*Table structure for table `cable_customers` */
 
@@ -1764,13 +1769,17 @@ CREATE TABLE `cable_recharges` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cable_recharge_month` (`shop_id`,`customer_pk`,`recharge_year`,`recharge_month`),
   KEY `idx_cable_recharge_pending` (`shop_id`,`pending_amount`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_recharges` */
 
 insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,`recharge_month`,`due_amount`,`paid_amount`,`pending_amount`,`recharge_date`,`recharge_time`,`pay_mode`,`paid_date`,`paid_time`,`uid`,`shop_id`) values 
-(1,1,'101',2026,8,300.00,100.00,200.00,'2026-08-01','13:46:01','upi','2026-09-22','13:46:30',1,'S01'),
-(2,1,'101',2026,9,300.00,50.00,250.00,'2026-09-22','13:46:35','cash','2026-09-22','13:46:46',1,'S01');
+(1,1,'101',2026,8,300.00,300.00,0.00,'2026-08-01','13:46:01','cash','2026-09-28','14:14:39',1,'S01'),
+(2,1,'101',2026,9,300.00,300.00,0.00,'2026-09-22','13:46:35','cash','2026-09-28','14:19:00',1,'S01'),
+(3,1,'101',2026,10,300.00,300.00,0.00,'2026-09-28','14:19:03','cash','2026-09-28','14:19:08',1,'S01'),
+(4,2,'3133675126',2026,9,300.00,300.00,0.00,'2026-09-28','14:21:06','upi','2026-09-28','14:21:10',1,'S01'),
+(5,2,'3133675126',2026,10,300.00,300.00,0.00,'2026-09-28','14:21:11','cash','2026-09-28','14:21:15',1,'S01'),
+(6,2,'3133675126',2026,11,300.00,0.00,300.00,'2026-09-28','14:21:28',NULL,NULL,NULL,1,'S01');
 
 /*Table structure for table `company_details` */
 

@@ -885,6 +885,7 @@ const CollectionRows: React.FC<{ rows: CollectionReportRow[]; total?: number }> 
               </span>
               <span>{row.collectedBy || '—'}</span>
             </div>
+            {row.notes?.trim() ? <div className="col-rep-note">{row.notes}</div> : null}
           </article>
         ))}
         <div className="col-rep-item total">
@@ -904,6 +905,7 @@ const CollectionRows: React.FC<{ rows: CollectionReportRow[]; total?: number }> 
               <th>Month</th>
               <th>Mode</th>
               <th className="num">Amount</th>
+              <th>Notes</th>
               <th>Collected By</th>
             </tr>
           </thead>
@@ -926,6 +928,7 @@ const CollectionRows: React.FC<{ rows: CollectionReportRow[]; total?: number }> 
                 <td className="num">
                   <strong>₹ {n(row.amount)}</strong>
                 </td>
+                <td>{row.notes?.trim() || '—'}</td>
                 <td>{row.collectedBy || '—'}</td>
               </tr>
             ))}
@@ -936,7 +939,7 @@ const CollectionRows: React.FC<{ rows: CollectionReportRow[]; total?: number }> 
               <td className="num">
                 <strong>₹ {n(total)}</strong>
               </td>
-              <td />
+              <td colSpan={2} />
             </tr>
           </tbody>
         </table>

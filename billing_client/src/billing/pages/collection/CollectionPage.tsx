@@ -64,6 +64,7 @@ const CollectionPage: React.FC = () => {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [busyMonth, setBusyMonth] = useState('');
   const [pending, setPending] = useState<PendingPay | null>(null);
+  const [payNotes, setPayNotes] = useState('');
   const [rechargePrompt, setRechargePrompt] = useState(false);
   const [acceptedRecharge, setAcceptedRecharge] = useState(false);
   const [skipCurrentRecharge, setSkipCurrentRecharge] = useState(false);
@@ -157,6 +158,7 @@ const CollectionPage: React.FC = () => {
       return;
     }
     setPending({ row, payMode, amount: value });
+    setPayNotes('');
   };
 
   const collect = async () => {
@@ -167,10 +169,11 @@ const CollectionPage: React.FC = () => {
       const next = collectionData<CollectionLookup>(
         await collectionApi.save({
           customerId: data.customer.customerId,
-          items: [{ month: row.month, amount, payMode }],
+          items: [{ month: row.month, amount, payMode, notes: payNotes.trim() }],
         })
       );
       setPending(null);
+      setPayNotes('');
       const needs = needsRechargeNow(next);
       const keepRecharge = acceptedRecharge || !needs;
       setAcceptedRecharge(keepRecharge);
@@ -260,19 +263,21 @@ const CollectionPage: React.FC = () => {
     fillAmounts(data, { includeCurrent: false, includePending: true });
   };
 
-  const acceptRecharge = async () => {
+  const acceptRecharge = async (month?: string, label?: string) => {
     if (!data) return;
+    const monthValue = typeof month === 'string' ? month : undefined;
+    const monthLabel = typeof label === 'string' ? label : undefined;
     setBusyMonth('recharge');
     try {
       const next = collectionData<CollectionLookup>(
-        await collectionApi.recharge(data.customer.customerId)
+        await collectionApi.recharge(data.customer.customerId, monthValue)
       );
       setAcceptedRecharge(true);
       setSkipCurrentRecharge(false);
       setRechargePrompt(false);
       setData(next);
       fillAmounts(next, { includeCurrent: true, includePending: true });
-      toast.success(`${next.currentMonth?.label || 'This month'} recharged. Collect now or later.`);
+      toast.success(`${monthLabel || next.currentMonth?.label || 'This month'} recharged. Collect now or later.`);
     } catch (err) {
       toast.error(collectionError(err, 'Could not recharge'));
     } finally {
@@ -284,6 +289,7 @@ const CollectionPage: React.FC = () => {
   const pendingReady = currentReady || skipCurrentRecharge;
   const rows = unpaidRows(data, { includeCurrent: currentReady, includePending: pendingReady });
   const currentPaid = Boolean(data?.currentMonth?.paid && data.currentMonth.recharged);
+  const canAdvance = Boolean(data?.canAdvanceRecharge && data.nextMonth);
   const payments: CollectionPayment[] = data?.payments || [];
   const filteredPayments = payments.filter((row) => {
     const month = (row.month || '').slice(0, 7);
@@ -458,10 +464,28 @@ const CollectionPage: React.FC = () => {
               <div className="col-paid on">No pending recharge months</div>
             )}
 
+            {canAdvance && !rechargePrompt && (
+              <div className="col-advance">
+                <div>
+                  <strong>Recharge coming month</strong>
+                  <span>{data.nextMonth?.label} · ₹ {Number(data.nextMonth?.due || data.customer.monthlyAmount || 0).toFixed(0)}</span>
+                </div>
+                <button
+                  className="mst-btn mst-btn-primary"
+                  type="button"
+                  disabled={Boolean(busyMonth)}
+                  onClick={() => acceptRecharge(data.nextMonth?.month, data.nextMonth?.label)}
+                >
+                  <i className="fas fa-bolt" /> {busyMonth === 'recharge' ? 'Saving…' : `Recharge ${data.nextMonth?.label}`}
+                </button>
+              </div>
+            )}
+
             {rows.length > 0 && (
               <div className="col-rows">
                 {rows.map((row) => {
                   const isCurrent = data.currentMonth.month === row.month;
+                  const isFuture = (row.month || '').slice(0, 7) > currentMonthPrefix();
                   const isNewRecharge = isCurrent && !row.recharged;
                   return (
                     <div key={row.month} className="col-row">
@@ -472,9 +496,11 @@ const CollectionPage: React.FC = () => {
                             ? `Recharge this month · ₹ ${Number(row.due || 0).toFixed(0)}`
                             : row.paidAmount
                               ? `Pending ₹ ${Number(row.balance || 0).toFixed(0)} / ₹ ${Number(row.due || 0).toFixed(0)}`
-                              : isCurrent
-                                ? `This month · ₹ ${Number(row.due || 0).toFixed(0)}`
-                                : `Pending recharge · ₹ ${Number(row.due || 0).toFixed(0)}`}
+                              : isFuture
+                                ? `Coming month · ₹ ${Number(row.due || 0).toFixed(0)}`
+                                : isCurrent
+                                  ? `This month · ₹ ${Number(row.due || 0).toFixed(0)}`
+                                  : `Pending recharge · ₹ ${Number(row.due || 0).toFixed(0)}`}
                         </span>
                       </div>
                       <div className="col-amount">
@@ -557,7 +583,7 @@ const CollectionPage: React.FC = () => {
                   className="mst-btn mst-btn-primary"
                   type="button"
                   disabled={Boolean(busyMonth)}
-                  onClick={acceptRecharge}
+                  onClick={() => acceptRecharge()}
                 >
                   <i className="fas fa-bolt" /> {busyMonth === 'recharge' ? 'Saving…' : 'Recharge'}
                 </button>
@@ -607,6 +633,16 @@ const CollectionPage: React.FC = () => {
               <div className="cust-detail">
                 <span>Payment</span>
                 <strong>{payLabel(pending.payMode)}</strong>
+              </div>
+              <div className="cust-detail span-2">
+                <span>Notes</span>
+                <textarea
+                  className="mst-inp"
+                  rows={3}
+                  value={payNotes}
+                  onChange={(e) => setPayNotes(e.target.value)}
+                  placeholder="Optional notes"
+                />
               </div>
             </div>
             <div className="cust-modal-f">

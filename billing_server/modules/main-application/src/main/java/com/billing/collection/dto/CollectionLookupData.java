@@ -14,6 +14,9 @@ public class CollectionLookupData {
     private Boolean needsRecharge;
     private List<CollectionMonthData> pendingMonths = new ArrayList<>();
     private CollectionMonthData currentMonth;
+    private CollectionMonthData nextMonth;
+    @JsonProperty("canAdvanceRecharge")
+    private Boolean canAdvanceRecharge;
     private List<CollectionPaymentRow> payments = new ArrayList<>();
     private Long lastPaymentId;
     private Double lastAmount;
