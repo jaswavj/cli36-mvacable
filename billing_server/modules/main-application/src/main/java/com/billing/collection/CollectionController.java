@@ -93,6 +93,12 @@ public class CollectionController {
         return ok(collectionService.rechargeMonth(customerId, month, currentUser()));
     }
 
+    @PostMapping("/recharges/{id}/cancel")
+    public ResponseDO cancelRecharge(@PathVariable Long id, @RequestBody CollectionCancelRequest request) {
+        collectionService.cancelRecharge(id, request, currentUser());
+        return ok(true);
+    }
+
     @GetMapping("/print/{id}")
     public ResponseDO printReceipt(@PathVariable Long id) {
         return ok(collectionPrintService.receipt(id, currentUser()));

@@ -103,6 +103,8 @@ const ActiveCustomerListPage: React.FC = () => {
   const [reconnecting, setReconnecting] = useState<CableCustomer | null>(null);
   const [reconnectDate, setReconnectDate] = useState(todayIso);
   const [reconnectNotes, setReconnectNotes] = useState('');
+  const [cancellingRecharge, setCancellingRecharge] = useState<PendingCustomer | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const query = { type: typeFilter, search, page, size: PAGE_SIZE };
 
@@ -197,18 +199,19 @@ const ActiveCustomerListPage: React.FC = () => {
   }, [tab, page, search, typeFilter]);
 
   useEffect(() => {
-    if (!selected && !disconnecting && !reconnecting) return;
+    if (!selected && !disconnecting && !reconnecting && !cancellingRecharge) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setSelected(null);
       if (!busyId) {
         setDisconnecting(null);
         setReconnecting(null);
+        setCancellingRecharge(null);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selected, disconnecting, reconnecting, busyId]);
+  }, [selected, disconnecting, reconnecting, cancellingRecharge, busyId]);
 
   const currentRows =
     tab === 'pending' ? pendingRows : tab === 'connection' ? connectionRows : tab === 'disconnection' ? disconnectRows : rows;
@@ -231,6 +234,7 @@ const ActiveCustomerListPage: React.FC = () => {
     setSelected(null);
     setDisconnecting(null);
     setReconnecting(null);
+    setCancellingRecharge(null);
   };
 
   const setSearchValue = (value: string) => {
@@ -245,6 +249,30 @@ const ActiveCustomerListPage: React.FC = () => {
 
   const openCollect = (customerId: string) => {
     navigate(routerPathNames.collection, { state: { customerId } });
+  };
+
+  const openCancelRecharge = (row: PendingCustomer) => {
+    setCancellingRecharge(row);
+    setCancelReason('');
+  };
+
+  const confirmCancelRecharge = async () => {
+    if (!cancellingRecharge) return;
+    if (!cancelReason.trim()) {
+      toast.warning('Enter cancel reason');
+      return;
+    }
+    setBusyId(cancellingRecharge.id);
+    try {
+      await collectionApi.cancelRecharge(cancellingRecharge.id, cancelReason.trim());
+      toast.success('Recharge cancelled');
+      setCancellingRecharge(null);
+      await refreshPending();
+    } catch (err) {
+      toast.error(collectionError(err, 'Could not cancel recharge'));
+    } finally {
+      setBusyId(0);
+    }
   };
 
   const openDisconnect = (row: CableCustomer) => {
@@ -352,10 +380,8 @@ const ActiveCustomerListPage: React.FC = () => {
             Name: row.name || '',
             Mobile: row.mobile || '',
             Area: row.area || '',
-            Joined: row.joiningDate || '',
-            'Monthly Amount': Number(row.monthlyAmount || 0),
-            'Pending From': row.firstPendingMonth || '',
-            Months: Number(row.pendingMonths || 0),
+            Month: row.monthLabel || row.firstPendingMonth || '',
+            'Recharge Date': row.rechargeDate || '',
             'Pending Amount': Number(row.pendingAmount || 0),
           })),
           'Pending Payment',
@@ -602,10 +628,10 @@ const ActiveCustomerListPage: React.FC = () => {
                 <th>Area</th>
                 {tab === 'pending' && (
                   <>
-                    <th>Pending From</th>
-                    <th className="num">Months</th>
+                    <th>Month</th>
+                    <th>Recharge Date</th>
                     <th className="num">Pending Amount</th>
-                    <th style={{ width: 90 }}>Action</th>
+                    <th style={{ width: 160 }}>Action</th>
                   </>
                 )}
                 {tab === 'connection' && (
@@ -663,14 +689,22 @@ const ActiveCustomerListPage: React.FC = () => {
                     <td>{row.name}</td>
                     <td className="trp-phone">{show(row.mobile)}</td>
                     <td>{show(row.area)}</td>
-                    <td>{show(row.firstPendingMonth)}</td>
-                    <td className="num">{row.pendingMonths || 0}</td>
+                    <td>{show(row.monthLabel || row.firstPendingMonth)}</td>
+                    <td>{show(row.rechargeDate)}</td>
                     <td className="num">
                       <strong className="cust-pending-amt">₹ {Number(row.pendingAmount || 0).toFixed(0)}</strong>
                     </td>
                     <td>
                       <button className="cust-collect-btn" type="button" onClick={() => openCollect(row.customerId)}>
                         Collect
+                      </button>
+                      <button
+                        className="cust-collect-btn danger"
+                        type="button"
+                        disabled={busyId === row.id}
+                        onClick={() => openCancelRecharge(row)}
+                      >
+                        Cancel
                       </button>
                     </td>
                   </tr>
@@ -1056,6 +1090,61 @@ const ActiveCustomerListPage: React.FC = () => {
                 onClick={confirmDisconnect}
               >
                 <i className="fas fa-unlink" /> {busyId === disconnecting.id ? 'Saving…' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cancellingRecharge && (
+        <div className="cust-modal" onClick={() => !busyId && setCancellingRecharge(null)}>
+          <div className="cust-modal-box narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="cust-modal-h">
+              <div>
+                <h3>Cancel Recharge</h3>
+                <p>
+                  {cancellingRecharge.name} ({cancellingRecharge.customerId}) ·{' '}
+                  {cancellingRecharge.monthLabel || cancellingRecharge.firstPendingMonth} · ₹{' '}
+                  {Number(cancellingRecharge.pendingAmount || 0).toFixed(0)}
+                </p>
+              </div>
+              <button
+                className="mst-icon-btn"
+                type="button"
+                title="Close"
+                disabled={Boolean(busyId)}
+                onClick={() => setCancellingRecharge(null)}
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="cust-modal-b">
+              <div className="mst-fg span-2">
+                <label>Reason</label>
+                <textarea
+                  className="mst-inp"
+                  rows={3}
+                  placeholder="Why is this recharge cancelled?"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="cust-modal-f">
+              <button
+                className="mst-btn mst-btn-outline"
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => setCancellingRecharge(null)}
+              >
+                Close
+              </button>
+              <button
+                className="mst-btn mst-btn-danger"
+                type="button"
+                disabled={busyId === cancellingRecharge.id}
+                onClick={confirmCancelRecharge}
+              >
+                {busyId === cancellingRecharge.id ? 'Saving…' : 'Cancel Recharge'}
               </button>
             </div>
           </div>

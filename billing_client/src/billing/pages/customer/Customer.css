@@ -186,6 +186,14 @@
   cursor: pointer;
 }
 
+.cust-collect-btn + .cust-collect-btn {
+  margin-left: 6px;
+}
+
+.cust-collect-btn.danger {
+  background: #c53030;
+}
+
 .mst-page .mst-card-h {
   flex-wrap: wrap;
 }

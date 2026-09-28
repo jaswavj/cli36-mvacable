@@ -364,18 +364,18 @@ public class CollectionService {
     public List<PendingCustomerRow> pendingCustomers(AppUser user) {
         requireShopUser(user);
         return jdbcTemplate.query(
-                "SELECT r.customer_pk AS id, IFNULL(cu.customer_type,'') AS customerType, r.customer_id AS customerId, " +
+                "SELECT r.id, IFNULL(cu.customer_type,'') AS customerType, r.customer_id AS customerId, " +
                         "IFNULL(cu.name,'') AS name, IFNULL(cu.mobile,'') AS mobile, IFNULL(cu.area,'') AS area, " +
                         "DATE_FORMAT(cu.joining_date, '%d-%m-%Y') AS joiningDate, cu.monthly_amount AS monthlyAmount, " +
-                        "COUNT(*) AS pendingMonths, COALESCE(SUM(r.pending_amount), 0) AS pendingAmount, " +
-                        "DATE_FORMAT(MIN(STR_TO_DATE(CONCAT(r.recharge_year, '-', LPAD(r.recharge_month, 2, '0'), '-01'), '%Y-%m-%d')), '%b %Y') AS firstPendingMonth " +
+                        "r.pending_amount AS pendingAmount, r.due_amount AS dueAmount, r.paid_amount AS paidAmount, " +
+                        "r.recharge_year, r.recharge_month, " +
+                        "DATE_FORMAT(IFNULL(r.recharge_date, r.paid_date), '%d-%m-%Y') AS rechargeDate " +
                         "FROM cable_recharges r " +
                         "INNER JOIN cable_customers cu ON cu.id = r.customer_pk " +
                         "WHERE r.shop_id = ? AND r.pending_amount > 0.009 AND IFNULL(cu.is_active, 1) = 1 " +
-                        "GROUP BY r.customer_pk, r.customer_id, cu.customer_type, cu.name, cu.mobile, cu.area, " +
-                        "cu.joining_date, cu.monthly_amount " +
-                        "ORDER BY pendingMonths DESC, pendingAmount DESC",
+                        "ORDER BY r.recharge_year, r.recharge_month, cu.name, r.id",
                 (rs, i) -> {
+                    YearMonth month = YearMonth.of(rs.getInt("recharge_year"), rs.getInt("recharge_month"));
                     PendingCustomerRow row = new PendingCustomerRow();
                     row.setId(rs.getLong("id"));
                     row.setCustomerType(rs.getString("customerType"));
@@ -385,9 +385,14 @@ public class CollectionService {
                     row.setArea(rs.getString("area"));
                     row.setJoiningDate(rs.getString("joiningDate"));
                     row.setMonthlyAmount(rs.getDouble("monthlyAmount"));
-                    row.setPendingMonths(rs.getInt("pendingMonths"));
+                    row.setPendingMonths(1);
                     row.setPendingAmount(round2(rs.getDouble("pendingAmount")));
-                    row.setFirstPendingMonth(rs.getString("firstPendingMonth"));
+                    row.setDueAmount(round2(rs.getDouble("dueAmount")));
+                    row.setPaidAmount(round2(rs.getDouble("paidAmount")));
+                    row.setMonth(month.atDay(1).toString());
+                    row.setMonthLabel(month.format(MONTH_LABEL));
+                    row.setFirstPendingMonth(month.format(MONTH_LABEL));
+                    row.setRechargeDate(rs.getString("rechargeDate"));
                     return row;
                 },
                 user.shopId()
@@ -405,7 +410,8 @@ public class CollectionService {
             }
             if (!q.isEmpty()) {
                 String hay = (nzStr(row.getCustomerId()) + " " + nzStr(row.getName()) + " " +
-                        nzStr(row.getMobile()) + " " + nzStr(row.getArea())).toLowerCase();
+                        nzStr(row.getMobile()) + " " + nzStr(row.getArea()) + " " +
+                        nzStr(row.getMonthLabel()) + " " + nzStr(row.getFirstPendingMonth())).toLowerCase();
                 if (!hay.contains(q)) {
                     continue;
                 }
@@ -837,6 +843,92 @@ public class CollectionService {
                 user
         );
         syncRechargeTotals(current.customerPk(), current.customerId(), YearMonth.from(current.month()), user.shopId());
+    }
+
+    @Transactional
+    public void cancelRecharge(Long id, CollectionCancelRequest request, AppUser user) {
+        requireShopUser(user);
+        if (id == null || id <= 0) {
+            throw new RuntimeException("Recharge not found");
+        }
+        String reason = request == null || request.getReason() == null ? "" : request.getReason().trim();
+        if (reason.isEmpty()) {
+            throw new RuntimeException("Cancel reason is required");
+        }
+        String shopId = user.shopId();
+        List<RechargeCancelRow> rows = jdbcTemplate.query(
+                "SELECT id, customer_pk, customer_id, recharge_year, recharge_month, due_amount, paid_amount, pending_amount, " +
+                        "IFNULL(recharge_date, paid_date) AS rechargeDate " +
+                        "FROM cable_recharges WHERE id = ? AND shop_id = ?",
+                (rs, i) -> new RechargeCancelRow(
+                        rs.getLong("id"),
+                        rs.getLong("customer_pk"),
+                        rs.getString("customer_id"),
+                        YearMonth.of(rs.getInt("recharge_year"), rs.getInt("recharge_month")),
+                        rs.getDouble("due_amount"),
+                        rs.getDouble("paid_amount"),
+                        rs.getDouble("pending_amount"),
+                        rs.getDate("rechargeDate") == null ? null : rs.getDate("rechargeDate").toLocalDate()
+                ),
+                id,
+                shopId
+        );
+        if (rows.isEmpty()) {
+            throw new RuntimeException("Recharge not found");
+        }
+        RechargeCancelRow current = rows.get(0);
+        Integer later = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM cable_recharges WHERE shop_id = ? AND customer_pk = ? " +
+                        "AND (recharge_year > ? OR (recharge_year = ? AND recharge_month > ?))",
+                Integer.class,
+                shopId,
+                current.customerPk(),
+                current.month().getYear(),
+                current.month().getYear(),
+                current.month().getMonthValue()
+        );
+        if (later != null && later > 0) {
+            throw new RuntimeException("Cancel later recharge months first");
+        }
+        List<Long> collectionIds = jdbcTemplate.query(
+                "SELECT id FROM cable_collections WHERE shop_id = ? AND customer_pk = ? AND IFNULL(is_cancelled,0) = 0 " +
+                        "AND YEAR(collection_month) = ? AND MONTH(collection_month) = ?",
+                (rs, i) -> rs.getLong("id"),
+                shopId,
+                current.customerPk(),
+                current.month().getYear(),
+                current.month().getMonthValue()
+        );
+        for (Long collectionId : collectionIds) {
+            cancelCollection(collectionId, request, user);
+        }
+        int deleted = jdbcTemplate.update(
+                "DELETE FROM cable_recharges WHERE id = ? AND shop_id = ?",
+                id,
+                shopId
+        );
+        if (deleted == 0) {
+            throw new RuntimeException("Recharge not found");
+        }
+        LocalDate logDate = current.rechargeDate() == null ? LocalDate.now() : current.rechargeDate();
+        writeLog(
+                id,
+                "cancel-recharge",
+                current.customerId(),
+                current.month().atDay(1),
+                current.dueAmount(),
+                0d,
+                null,
+                null,
+                logDate,
+                logDate,
+                reason,
+                user
+        );
+    }
+
+    private record RechargeCancelRow(Long id, Long customerPk, String customerId, YearMonth month,
+                                     double dueAmount, double paidAmount, double pendingAmount, LocalDate rechargeDate) {
     }
 
     public List<CollectionLogRow> editLog(String from, String to, AppUser user) {

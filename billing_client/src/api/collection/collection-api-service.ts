@@ -100,6 +100,11 @@ export type PendingCustomer = {
   pendingMonths?: number;
   pendingAmount?: number;
   firstPendingMonth?: string;
+  month?: string;
+  monthLabel?: string;
+  rechargeDate?: string;
+  dueAmount?: number;
+  paidAmount?: number;
 };
 
 export type AccountExpense = {
@@ -205,6 +210,9 @@ export class CollectionApiService {
 
   cancel = (id: number, reason: string) =>
     this.http.post(`/v1/cable-collections/${id}/cancel`, { reason });
+
+  cancelRecharge = (id: number, reason: string) =>
+    this.http.post(`/v1/cable-collections/recharges/${id}/cancel`, { reason });
 
   editLog = (from: string, to: string) =>
     this.http.get(`/v1/cable-collections/edit-log?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);

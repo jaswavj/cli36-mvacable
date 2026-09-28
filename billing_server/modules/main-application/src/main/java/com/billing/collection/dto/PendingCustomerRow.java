@@ -15,4 +15,9 @@ public class PendingCustomerRow {
     private Integer pendingMonths;
     private Double pendingAmount;
     private String firstPendingMonth;
+    private String month;
+    private String monthLabel;
+    private String rechargeDate;
+    private Double dueAmount;
+    private Double paidAmount;
 }
