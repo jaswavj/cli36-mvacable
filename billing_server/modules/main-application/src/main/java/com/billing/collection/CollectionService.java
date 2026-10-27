@@ -719,6 +719,38 @@ public class CollectionService {
         data.setLastExpenseTotal(last.getExpenseTotal());
         data.setExpensePct(pctChange(nz(current.getExpenseTotal()), nz(last.getExpenseTotal())));
         data.setExpenseCount(current.getExpenseCount());
+        double stockSale = 0;
+        double lastStockSale = 0;
+        int stockSaleCount = 0;
+        try {
+            stockSale = sum(
+                    "SELECT COALESCE(SUM(amount),0) FROM stock_sales " +
+                            "WHERE shop_id = ? AND IFNULL(is_cancelled,0) = 0 AND sale_date BETWEEN ? AND ?",
+                    shopId,
+                    Date.valueOf(fromDate),
+                    Date.valueOf(toDate)
+            );
+            lastStockSale = sum(
+                    "SELECT COALESCE(SUM(amount),0) FROM stock_sales " +
+                            "WHERE shop_id = ? AND IFNULL(is_cancelled,0) = 0 AND sale_date BETWEEN ? AND ?",
+                    shopId,
+                    Date.valueOf(prevFrom),
+                    Date.valueOf(prevTo)
+            );
+            stockSaleCount = count(
+                    "SELECT COUNT(*) FROM stock_sales " +
+                            "WHERE shop_id = ? AND IFNULL(is_cancelled,0) = 0 AND sale_date BETWEEN ? AND ?",
+                    shopId,
+                    Date.valueOf(fromDate),
+                    Date.valueOf(toDate)
+            );
+        } catch (Exception ignored) {
+            // Keep dashboard usable if stock_sales is not ready yet.
+        }
+        data.setStockSaleTotal(stockSale);
+        data.setLastStockSaleTotal(lastStockSale);
+        data.setStockSalePct(pctChange(stockSale, lastStockSale));
+        data.setStockSaleCount(stockSaleCount);
         data.setFinalAmount(current.getFinalAmount());
         data.setLastFinalAmount(last.getFinalAmount());
         data.setFinalPct(pctChange(nz(current.getFinalAmount()), nz(last.getFinalAmount())));

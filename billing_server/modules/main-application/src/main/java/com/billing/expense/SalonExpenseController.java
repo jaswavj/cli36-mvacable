@@ -6,6 +6,7 @@ import com.billing.expense.dto.SalonExpenseSaveRequest;
 import com.billing.security.PlatformSecurityContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,13 +26,20 @@ public class SalonExpenseController {
         return ok(salonExpenseService.save(request, currentUser()));
     }
 
+    @PostMapping("/{id}/update")
+    public ResponseDO update(@PathVariable Long id, @RequestBody SalonExpenseSaveRequest request) {
+        salonExpenseService.update(id, request, currentUser());
+        return ok(true);
+    }
+
     @GetMapping("/report")
     public ResponseDO report(
             @RequestParam String from,
             @RequestParam String to,
-            @RequestParam(required = false) String shopId
+            @RequestParam(required = false) String shopId,
+            @RequestParam(required = false) Long userId
     ) {
-        return ok(salonExpenseService.report(from, to, shopId, currentUser()));
+        return ok(salonExpenseService.report(from, to, shopId, userId, currentUser()));
     }
 
     private AppUser currentUser() {

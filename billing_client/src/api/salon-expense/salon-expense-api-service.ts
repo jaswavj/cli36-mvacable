@@ -24,9 +24,13 @@ export class SalonExpenseApiService {
   save = (payload: { amount: number; expenseFor: string }) =>
     this.http.post('/v1/salon-expenses', payload);
 
-  report = (from: string, to: string, shopId?: string) => {
+  update = (id: number, payload: { amount: number; expenseFor: string }) =>
+    this.http.post(`/v1/salon-expenses/${id}/update`, payload);
+
+  report = (from: string, to: string, shopId?: string, userId?: number) => {
     const params = new URLSearchParams({ from, to });
     if (shopId) params.set('shopId', shopId);
+    if (userId) params.set('userId', String(userId));
     return this.http.get(`/v1/salon-expenses/report?${params}`);
   };
 }

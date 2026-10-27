@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -186,13 +187,17 @@ public class StockService {
     }
 
     public StockSaleReportData saleReport(String from, String to, AppUser user) {
+        return saleReport(from, to, null, user);
+    }
+
+    public StockSaleReportData saleReport(String from, String to, Long userId, AppUser user) {
         String shopId = requireShop(user);
         LocalDate fromDate = parseDate(from, "From date");
         LocalDate toDate = parseDate(to, "To date");
         if (toDate.isBefore(fromDate)) {
             throw new RuntimeException("To date cannot be before from date");
         }
-        List<StockSaleRow> rows = saleRows(shopId, fromDate, toDate);
+        List<StockSaleRow> rows = saleRows(shopId, fromDate, toDate, userId);
         StockSaleReportData data = new StockSaleReportData();
         data.setRows(rows);
         data.setCount(rows.size());
@@ -304,8 +309,8 @@ public class StockService {
         );
     }
 
-    private List<StockSaleRow> saleRows(String shopId, LocalDate fromDate, LocalDate toDate) {
-        return jdbcTemplate.query(
+    private List<StockSaleRow> saleRows(String shopId, LocalDate fromDate, LocalDate toDate, Long userId) {
+        StringBuilder sql = new StringBuilder(
                 "SELECT s.id, s.product_id, IFNULL(p.name,'') AS productName, s.qty, s.rate, s.amount, s.notes, " +
                         "DATE_FORMAT(s.sale_date, '%d-%m-%Y') AS saleDate, " +
                         "TIME_FORMAT(s.sale_time, '%h:%i %p') AS saleTime, " +
@@ -313,8 +318,19 @@ public class StockService {
                         "FROM stock_sales s " +
                         "LEFT JOIN stock_products p ON p.id = s.product_id " +
                         "LEFT JOIN users u ON u.id = s.uid " +
-                        "WHERE s.shop_id = ? AND IFNULL(s.is_cancelled,0) = 0 AND s.sale_date BETWEEN ? AND ? " +
-                        "ORDER BY s.sale_date DESC, s.id DESC",
+                        "WHERE s.shop_id = ? AND IFNULL(s.is_cancelled,0) = 0 AND s.sale_date BETWEEN ? AND ?"
+        );
+        List<Object> args = new ArrayList<>();
+        args.add(shopId);
+        args.add(Date.valueOf(fromDate));
+        args.add(Date.valueOf(toDate));
+        if (userId != null && userId > 0) {
+            sql.append(" AND s.uid = ?");
+            args.add(userId);
+        }
+        sql.append(" ORDER BY s.sale_date DESC, s.id DESC");
+        return jdbcTemplate.query(
+                sql.toString(),
                 (rs, i) -> {
                     StockSaleRow row = new StockSaleRow();
                     row.setId(rs.getLong("id"));
@@ -329,9 +345,7 @@ public class StockService {
                     row.setSoldBy(rs.getString("soldBy"));
                     return row;
                 },
-                shopId,
-                Date.valueOf(fromDate),
-                Date.valueOf(toDate)
+                args.toArray()
         );
     }
 

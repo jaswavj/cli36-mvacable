@@ -5,14 +5,19 @@ import {
   salonExpenseData,
   salonExpenseError,
   type SalonExpenseReport,
+  type SalonExpenseRow,
 } from '../../../api/salon-expense/salon-expense-api-service';
+import { usersApi, usersData } from '../../../api/users/users-api-service';
 import '../master/Master.css';
+import '../customer/Customer.css';
 import '../quick-bill/QuickBill.css';
 
 type Tab = 'entry' | 'report';
+type UserOpt = { id: number; name?: string; userName?: string; fullName?: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
+const userLabel = (u: UserOpt) => u.name || u.fullName || u.userName || `User ${u.id}`;
 
 const SalonExpensePage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('entry');
@@ -21,9 +26,14 @@ const SalonExpensePage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
+  const [userId, setUserId] = useState('');
+  const [users, setUsers] = useState<UserOpt[]>([]);
   const [data, setData] = useState<SalonExpenseReport | null>(null);
+  const [editing, setEditing] = useState<SalonExpenseRow | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editFor, setEditFor] = useState('');
 
-  const search = useCallback(async (fromDate = from, toDate = to) => {
+  const search = useCallback(async (fromDate = from, toDate = to, nextUser = userId) => {
     if (!fromDate || !toDate) {
       toast.warning('Select from and to date');
       return;
@@ -34,18 +44,59 @@ const SalonExpensePage: React.FC = () => {
     }
     setBusy(true);
     try {
-      setData(salonExpenseData<SalonExpenseReport>(await salonExpenseApi.report(fromDate, toDate)));
+      setData(
+        salonExpenseData<SalonExpenseReport>(
+          await salonExpenseApi.report(fromDate, toDate, undefined, nextUser ? Number(nextUser) : undefined)
+        )
+      );
     } catch (err) {
       toast.error(salonExpenseError(err, 'Could not load expense report'));
     } finally {
       setBusy(false);
     }
-  }, [from, to]);
+  }, [from, to, userId]);
+
+  useEffect(() => {
+    usersApi
+      .list()
+      .then((res) => setUsers(usersData<UserOpt[]>(res) || []))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (tab === 'report') search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  const openEdit = (row: SalonExpenseRow) => {
+    setEditing(row);
+    setEditAmount(String(row.amount ?? ''));
+    setEditFor(row.expenseFor || '');
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const value = parseFloat(editAmount);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.warning('Enter a valid amount');
+      return;
+    }
+    if (!editFor.trim()) {
+      toast.warning('Enter expense for');
+      return;
+    }
+    setBusy(true);
+    try {
+      await salonExpenseApi.update(editing.id, { amount: value, expenseFor: editFor.trim() });
+      toast.success('Expense updated');
+      setEditing(null);
+      await search();
+    } catch (err) {
+      toast.error(salonExpenseError(err, 'Could not update expense'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +195,17 @@ const SalonExpensePage: React.FC = () => {
                 <label>To Date</label>
                 <input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
+              <div className="mst-fg">
+                <label>User</label>
+                <select className="mst-sel" value={userId} onChange={(e) => setUserId(e.target.value)}>
+                  <option value="">All Users</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {userLabel(u)}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="mst-actions">
                 <button className="mst-btn mst-btn-primary" type="button" onClick={() => search()} disabled={busy}>
                   {busy ? 'Loading…' : 'Show Details'}
@@ -192,6 +254,7 @@ const SalonExpensePage: React.FC = () => {
                           <th>Expense For</th>
                           <th className="num">Amount</th>
                           <th>User</th>
+                          <th style={{ width: 52 }}>Edit</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -203,6 +266,11 @@ const SalonExpensePage: React.FC = () => {
                             <td>{row.expenseFor}</td>
                             <td className="num">{n(row.amount)}</td>
                             <td>{row.userName || '—'}</td>
+                            <td>
+                              <button className="mst-icon-btn" type="button" title="Edit" onClick={() => openEdit(row)}>
+                                <i className="fas fa-edit" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -210,7 +278,7 @@ const SalonExpensePage: React.FC = () => {
                         <tr>
                           <th colSpan={4}>Total</th>
                           <th className="num">{n(data.grandTotal)}</th>
-                          <th />
+                          <th colSpan={2} />
                         </tr>
                       </tfoot>
                     </table>
@@ -220,6 +288,55 @@ const SalonExpensePage: React.FC = () => {
             </>
           )}
         </>
+      )}
+
+      {editing && (
+        <div className="cust-modal" onClick={() => !busy && setEditing(null)}>
+          <div className="cust-modal-box narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="cust-modal-h">
+              <div>
+                <h3>Edit Expense</h3>
+                <p>
+                  {editing.expenseDate} {editing.expenseTime} · {editing.userName || '—'}
+                </p>
+              </div>
+              <button className="mst-icon-btn" type="button" onClick={() => setEditing(null)}>
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="cust-modal-b">
+              <div className="mst-fg">
+                <label>Amount</label>
+                <input
+                  className="mst-inp"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </div>
+              <div className="mst-fg span-2">
+                <label>Expense For</label>
+                <textarea
+                  className="mst-inp"
+                  rows={3}
+                  value={editFor}
+                  onChange={(e) => setEditFor(e.target.value)}
+                  placeholder="Tea, rent, supplies…"
+                />
+              </div>
+            </div>
+            <div className="cust-modal-f">
+              <button className="mst-btn mst-btn-outline" type="button" disabled={busy} onClick={() => setEditing(null)}>
+                Close
+              </button>
+              <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={saveEdit}>
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

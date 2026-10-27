@@ -265,6 +265,10 @@ export type DashboardData = {
   lastExpenseTotal?: number;
   expensePct?: number;
   expenseCount?: number;
+  stockSaleTotal?: number;
+  lastStockSaleTotal?: number;
+  stockSalePct?: number;
+  stockSaleCount?: number;
   finalAmount?: number;
   lastFinalAmount?: number;
   finalPct?: number;

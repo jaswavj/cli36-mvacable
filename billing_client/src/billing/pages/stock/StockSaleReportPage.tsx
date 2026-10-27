@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { stockApi, stockData, stockError, type StockSaleReport } from '../../../api/stock/stock-api-service';
+import { usersApi, usersData } from '../../../api/users/users-api-service';
 import '../master/Master.css';
 import '../collection/Collection.css';
+
+type UserOpt = { id: number; name?: string; userName?: string; fullName?: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
 const show = (v?: string) => (v && v.trim() ? v : '—');
+const userLabel = (u: UserOpt) => u.name || u.fullName || u.userName || `User ${u.id}`;
 
 const StockSaleReportPage: React.FC = () => {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
+  const [userId, setUserId] = useState('');
+  const [users, setUsers] = useState<UserOpt[]>([]);
   const [data, setData] = useState<StockSaleReport | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    usersApi
+      .list()
+      .then((res) => setUsers(usersData<UserOpt[]>(res) || []))
+      .catch(() => undefined);
+  }, []);
 
   const search = async () => {
     if (!from || !to) {
@@ -25,7 +38,7 @@ const StockSaleReportPage: React.FC = () => {
     }
     setBusy(true);
     try {
-      setData(stockData<StockSaleReport>(await stockApi.saleReport(from, to)));
+      setData(stockData<StockSaleReport>(await stockApi.saleReport(from, to, userId ? Number(userId) : undefined)));
     } catch (err) {
       toast.error(stockError(err, 'Could not load sale report'));
     } finally {
@@ -49,6 +62,17 @@ const StockSaleReportPage: React.FC = () => {
           <div className="mst-fg">
             <label>To Date</label>
             <input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div className="mst-fg">
+            <label>User</label>
+            <select className="mst-sel" value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <option value="">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {userLabel(u)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={search}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 import {
   collectionApi,
   collectionData,
@@ -31,6 +32,30 @@ const payLabel = (mode?: string) => (mode === 'upi' ? 'UPI' : mode === 'cash' ? 
 const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : type === 'cable' ? 'Cable' : type || '—');
 const userLabel = (u: UserOpt) => u.name || u.fullName || u.userName || `User ${u.id}`;
 
+const fetchAllPages = async (
+  load: (page: number) => Promise<{ rows?: CollectionReportRow[]; count?: number }>
+): Promise<CollectionReportRow[]> => {
+  const first = await load(1);
+  const all = [...(first.rows || [])];
+  const total = first.count || all.length;
+  for (let page = 2; all.length < total; page++) {
+    const next = await load(page);
+    if (!next.rows?.length) break;
+    all.push(...next.rows);
+  }
+  return all;
+};
+
+const saveXlsx = (rows: Record<string, string | number>[], sheetName: string, fileName: string) => {
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  sheet['!cols'] = Object.keys(rows[0] || {}).map((key) => ({
+    wch: Math.max(key.length + 2, 14),
+  }));
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, sheetName.slice(0, 31));
+  XLSX.writeFile(book, fileName);
+};
+
 const CollectionReportPage: React.FC = () => {
   const [tab, setTab] = useState<ReportTab>('collection');
   const [from, setFrom] = useState(today);
@@ -44,6 +69,7 @@ const CollectionReportPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<CollectionReportRow | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     usersApi
@@ -100,6 +126,111 @@ const CollectionReportPage: React.FC = () => {
   };
 
   const search = () => (tab === 'account' ? searchAccount() : searchCollection());
+
+  const downloadExcel = async () => {
+    if (!from || !to) {
+      toast.warning('Select from and to date');
+      return;
+    }
+    if (to < from) {
+      toast.warning('To date cannot be before from date');
+      return;
+    }
+    setDownloading(true);
+    try {
+      if (tab === 'account') {
+        const report = collectionData<AccountReport>(await collectionApi.account(from, to));
+        const list = report.expenses || [];
+        if (!list.length) {
+          toast.warning('No expense to download');
+          return;
+        }
+        saveXlsx(
+          [
+            ...list.map((row, i) => ({
+              '#': i + 1,
+              Date: row.expenseDate || '',
+              Time: row.expenseTime || '',
+              'Expense For': row.expenseFor || '',
+              User: row.userName || '',
+              Amount: Number(row.amount || 0),
+            })),
+            {
+              '#': '',
+              Date: '',
+              Time: '',
+              'Expense For': 'Expense Total',
+              User: '',
+              Amount: Number(report.expenseTotal || 0),
+            },
+          ],
+          'Account Report',
+          `account-report-${from}-to-${to}.xlsx`
+        );
+        toast.success('Excel downloaded');
+        return;
+      }
+      const list = await fetchAllPages(async (nextPage) =>
+        collectionData<CollectionReport>(
+          await collectionApi.report(
+            from,
+            to,
+            userId ? Number(userId) : undefined,
+            payMode || undefined,
+            customerType || undefined,
+            nextPage,
+            100
+          )
+        )
+      );
+      if (!list.length) {
+        toast.warning('No collections to download');
+        return;
+      }
+      const total = list.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      saveXlsx(
+        [
+          ...list.map((row, i) => ({
+            '#': i + 1,
+            Date: row.paidDate || '',
+            Time: row.paidTime || '',
+            Type: typeLabel(row.customerType),
+            'Customer ID': row.customerId || '',
+            Name: row.customerName || '',
+            Mobile: row.mobile || '',
+            Area: row.area || '',
+            Month: row.monthLabel || '',
+            Mode: payLabel(row.payMode),
+            Amount: Number(row.amount || 0),
+            Notes: row.notes || '',
+            'Collected By': row.collectedBy || '',
+          })),
+          {
+            '#': '',
+            Date: '',
+            Time: '',
+            Type: '',
+            'Customer ID': '',
+            Name: 'Grand Total',
+            Mobile: '',
+            Area: '',
+            Month: '',
+            Mode: '',
+            Amount: total,
+            Notes: '',
+            'Collected By': '',
+          },
+        ],
+        'Collection Report',
+        `collection-report-${from}-to-${to}.xlsx`
+      );
+      toast.success('Excel downloaded');
+    } catch (err) {
+      toast.error(collectionError(err, 'Could not download Excel'));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const rows: CollectionReportRow[] = data?.rows || [];
   const expenses: AccountExpense[] = account?.expenses || [];
@@ -164,6 +295,15 @@ const CollectionReportPage: React.FC = () => {
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={search}>
               {busy ? 'Loading…' : 'Generate'}
+            </button>
+            <button
+              className="mst-btn mst-btn-outline cust-xlsx-btn"
+              type="button"
+              disabled={busy || downloading}
+              onClick={downloadExcel}
+            >
+              <i className="fas fa-file-excel" />
+              {downloading ? ' Downloading…' : ' Excel'}
             </button>
           </div>
         </div>

@@ -59,8 +59,11 @@ export class StockApiService {
   saveSale = (payload: { productId: number; qty: number; rate: number; notes?: string }) =>
     this.http.post('/v1/stock/sales', payload);
 
-  saleReport = (from: string, to: string) =>
-    this.http.get(`/v1/stock/sales?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  saleReport = (from: string, to: string, userId?: number) => {
+    const params = new URLSearchParams({ from, to });
+    if (userId) params.set('userId', String(userId));
+    return this.http.get(`/v1/stock/sales?${params}`);
+  };
 
   updateSale = (id: number, payload: { qty: number; rate: number; notes?: string; reason: string }) =>
     this.http.post(`/v1/stock/sales/${id}/update`, payload);

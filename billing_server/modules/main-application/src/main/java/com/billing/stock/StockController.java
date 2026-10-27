@@ -48,8 +48,12 @@ public class StockController {
     }
 
     @GetMapping("/sales")
-    public ResponseDO saleReport(@RequestParam String from, @RequestParam String to) {
-        return ok(stockService.saleReport(from, to, currentUser()));
+    public ResponseDO saleReport(
+            @RequestParam String from,
+            @RequestParam String to,
+            @RequestParam(required = false) Long userId
+    ) {
+        return ok(stockService.saleReport(from, to, userId, currentUser()));
     }
 
     @PostMapping("/sales/{id}/update")

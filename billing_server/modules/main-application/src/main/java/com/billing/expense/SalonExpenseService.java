@@ -77,15 +77,47 @@ public class SalonExpenseService {
         return Map.of("id", key == null ? 0 : key.longValue());
     }
 
-    public SalonExpenseReportData report(String from, String to, String shopId, AppUser user) {
+    @Transactional
+    public void update(Long id, SalonExpenseSaveRequest request, AppUser user) {
+        if (id == null || id <= 0) {
+            throw new RuntimeException("Expense not found");
+        }
+        if (request == null || request.getAmount() == null || request.getAmount() <= 0) {
+            throw new RuntimeException("Enter a valid amount");
+        }
+        String expenseFor = request.getExpenseFor() == null ? "" : request.getExpenseFor().trim();
+        if (expenseFor.isEmpty()) {
+            throw new RuntimeException("Enter expense for");
+        }
+        String shopId = user == null ? "" : user.shopId();
+        if (shopId == null || shopId.isBlank()) {
+            throw new RuntimeException("Shop ID is missing from session");
+        }
+        int updated = jdbcTemplate.update(
+                "UPDATE salon_expenses SET amount = ?, expense_for = ? WHERE id = ? AND shop_id = ?",
+                request.getAmount(),
+                expenseFor,
+                id,
+                shopId
+        );
+        if (updated == 0) {
+            throw new RuntimeException("Expense not found");
+        }
+    }
+
+    public SalonExpenseReportData report(String from, String to, String shopId, Long userId, AppUser user) {
         String sessionShop = user == null ? "" : user.shopId();
         if (sessionShop != null && !sessionShop.isBlank()) {
-            return report(from, to, sessionShop);
+            return report(from, to, sessionShop, userId);
         }
-        return report(from, to, shopId);
+        return report(from, to, shopId, userId);
     }
 
     public SalonExpenseReportData report(String from, String to, String shopId) {
+        return report(from, to, shopId, null);
+    }
+
+    public SalonExpenseReportData report(String from, String to, String shopId, Long userId) {
         if (from == null || from.isBlank() || to == null || to.isBlank()) {
             throw new RuntimeException("From date and to date are required");
         }
@@ -106,6 +138,10 @@ public class SalonExpenseService {
         if (shopId != null && !shopId.isBlank()) {
             sql.append(" AND se.shop_id = ?");
             args.add(shopId);
+        }
+        if (userId != null && userId > 0) {
+            sql.append(" AND se.uid = ?");
+            args.add(userId);
         }
         sql.append(" ORDER BY se.exp_date DESC, se.exp_time DESC, se.id DESC");
 

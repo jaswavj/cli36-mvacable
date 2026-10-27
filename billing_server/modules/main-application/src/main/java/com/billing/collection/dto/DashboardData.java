@@ -24,6 +24,10 @@ public class DashboardData {
     private Double lastExpenseTotal;
     private Double expensePct;
     private Integer expenseCount;
+    private Double stockSaleTotal;
+    private Double lastStockSaleTotal;
+    private Double stockSalePct;
+    private Integer stockSaleCount;
     private Double finalAmount;
     private Double lastFinalAmount;
     private Double finalPct;

@@ -35,6 +35,7 @@ import {
   type CableCustomer,
   type PagedCustomers,
 } from '../../../api/customer/customer-api-service';
+import { stockApi, stockData, stockError, type StockSale, type StockSaleReport } from '../../../api/stock/stock-api-service';
 import PageBar, { PAGE_SIZE } from '../../components/PageBar';
 import '../master/Master.css';
 import '../credit/Credit.css';
@@ -66,7 +67,7 @@ type TypeFilter = '' | 'cable' | 'wifi';
 type CustomerKind = 'active' | 'new' | 'disconnect';
 type ModalSpec = {
   title: string;
-  kind: 'collection' | 'expense' | 'final' | 'pending' | 'customers';
+  kind: 'collection' | 'expense' | 'final' | 'pending' | 'customers' | 'stock';
   from?: string;
   to?: string;
   payMode?: string;
@@ -129,6 +130,7 @@ const CollectionDashboardPage: React.FC = () => {
   const [account, setAccount] = useState<AccountReport | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingCustomer[]>([]);
   const [customerRows, setCustomerRows] = useState<CableCustomer[]>([]);
+  const [stockSales, setStockSales] = useState<StockSaleReport | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
   const [modalPage, setModalPage] = useState(1);
   const [modalTotal, setModalTotal] = useState(0);
@@ -209,6 +211,7 @@ const CollectionDashboardPage: React.FC = () => {
     setAccount(null);
     setPendingRows([]);
     setCustomerRows([]);
+    setStockSales(null);
     setTypeFilter('');
     setModalPage(1);
     setModalTotal(0);
@@ -220,6 +223,7 @@ const CollectionDashboardPage: React.FC = () => {
     setAccount(null);
     setPendingRows([]);
     setCustomerRows([]);
+    setStockSales(null);
     setModalTotal(0);
     setModalPage(1);
     setTypeFilter(spec.customerType === 'wifi' || spec.customerType === 'cable' ? spec.customerType : '');
@@ -251,6 +255,10 @@ const CollectionDashboardPage: React.FC = () => {
           const next = collectionData<AccountReport>(await collectionApi.account(modal.from || '', modal.to || ''));
           if (cancelled) return;
           setAccount(next);
+        } else if (modal.kind === 'stock') {
+          const next = stockData<StockSaleReport>(await stockApi.saleReport(modal.from || '', modal.to || ''));
+          if (cancelled) return;
+          setStockSales(next);
         } else if (modal.kind === 'pending') {
           const next = collectionData<PendingList>(
             await collectionApi.pendingCustomers({ type: typeFilter, page: modalPage, size: PAGE_SIZE })
@@ -293,7 +301,9 @@ const CollectionDashboardPage: React.FC = () => {
         toast.error(
           modal.kind === 'customers'
             ? customerError(err, 'Could not load details')
-            : collectionError(err, 'Could not load details')
+            : modal.kind === 'stock'
+              ? stockError(err, 'Could not load details')
+              : collectionError(err, 'Could not load details')
         );
         closeModal();
       } finally {
@@ -490,6 +500,18 @@ const CollectionDashboardPage: React.FC = () => {
               </div>
               <div className="st-kpi-v">₹ {n(data.pendingAmount)}</div>
               <div className="st-kpi-t">{data.pendingCustomers || 0} customers</div>
+            </button>
+            <button type="button" className="st-kpi stock col-dash-card" onClick={() => openRange('stock', `Stock sale — ${data.label}`)}>
+              <div className="col-kpi-head">
+                <span className="st-kpi-l">Stock sale</span>
+                <span className="col-kpi-icon">
+                  <i className="fas fa-boxes" />
+                </span>
+              </div>
+              <div className="st-kpi-v">₹ {n(data.stockSaleTotal)}</div>
+              <div className="st-kpi-t">
+                {data.stockSaleCount || 0} sales · {trend(data.stockSalePct, data.lastStockSaleTotal, vsLabel)}
+              </div>
             </button>
           </div>
 
@@ -822,6 +844,9 @@ const CollectionDashboardPage: React.FC = () => {
                 {!modalBusy && modal.kind === 'expense' && (
                   <ExpenseRows rows={account?.expenses || []} total={account?.expenseTotal} />
                 )}
+                {!modalBusy && modal.kind === 'stock' && (
+                  <StockSaleRows rows={stockSales?.rows || []} total={stockSales?.totalAmount} />
+                )}
                 {!modalBusy && modal.kind === 'final' && account && (
                   <>
                     <div className="col-dash-modal-stats">
@@ -1004,6 +1029,82 @@ const ExpenseRows: React.FC<{ rows: AccountExpense[]; total?: number }> = ({ row
               <td className="num">
                 <strong>₹ {n(total)}</strong>
               </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+};
+
+const StockSaleRows: React.FC<{ rows: StockSale[]; total?: number }> = ({ rows, total }) => {
+  if (!rows.length) return <div className="mst-empty">No stock sale in this period.</div>;
+  return (
+    <>
+      <div className="col-dash-modal-list">
+        {rows.map((row) => (
+          <article key={row.id} className="col-rep-item">
+            <div className="col-rep-item-h">
+              <strong>{show(row.productName)}</strong>
+              <span className="col-rep-amt">₹ {n(row.amount)}</span>
+            </div>
+            <div className="col-rep-item-m">
+              <span>Qty {Number(row.qty || 0)}</span>
+              <span>₹ {n(row.rate)}</span>
+              <span>{show(row.soldBy)}</span>
+            </div>
+            <div className="col-rep-item-f">
+              <span>
+                {show(row.saleDate)} {show(row.saleTime)}
+              </span>
+              <span>{show(row.notes)}</span>
+            </div>
+          </article>
+        ))}
+        <div className="col-rep-item total">
+          <span>Stock sale total</span>
+          <span className="col-rep-amt">₹ {n(total)}</span>
+        </div>
+      </div>
+      <div className="mst-table-wrap col-dash-modal-table">
+        <table className="mst-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Product</th>
+              <th className="num">Qty</th>
+              <th className="num">Rate</th>
+              <th className="num">Amount</th>
+              <th>User</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.id}>
+                <td>{i + 1}</td>
+                <td>
+                  {show(row.saleDate)} {show(row.saleTime)}
+                </td>
+                <td>
+                  <strong>{show(row.productName)}</strong>
+                </td>
+                <td className="num">{Number(row.qty || 0)}</td>
+                <td className="num">₹ {n(row.rate)}</td>
+                <td className="num">
+                  <strong>₹ {n(row.amount)}</strong>
+                </td>
+                <td>{show(row.soldBy)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td colSpan={5}>
+                <strong>Stock sale total</strong>
+              </td>
+              <td className="num">
+                <strong>₹ {n(total)}</strong>
+              </td>
+              <td />
             </tr>
           </tbody>
         </table>
