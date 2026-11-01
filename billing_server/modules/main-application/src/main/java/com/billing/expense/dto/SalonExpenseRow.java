@@ -7,6 +7,8 @@ public class SalonExpenseRow {
     private Long id;
     private Double amount;
     private String expenseFor;
+    private String payMode;
+    private String customerType;
     private String shopId;
     private String shopName;
     private Long userId;

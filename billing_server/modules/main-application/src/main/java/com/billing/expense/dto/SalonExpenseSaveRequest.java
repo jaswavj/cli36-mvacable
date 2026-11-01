@@ -6,4 +6,6 @@ import lombok.Data;
 public class SalonExpenseSaveRequest {
     private Double amount;
     private String expenseFor;
+    private String payMode;
+    private String customerType;
 }

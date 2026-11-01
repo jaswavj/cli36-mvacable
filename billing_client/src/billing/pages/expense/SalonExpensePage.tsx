@@ -4,6 +4,8 @@ import {
   salonExpenseApi,
   salonExpenseData,
   salonExpenseError,
+  type CustomerType,
+  type PayMode,
   type SalonExpenseReport,
   type SalonExpenseRow,
 } from '../../../api/salon-expense/salon-expense-api-service';
@@ -18,22 +20,36 @@ type UserOpt = { id: number; name?: string; userName?: string; fullName?: string
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
 const userLabel = (u: UserOpt) => u.name || u.fullName || u.userName || `User ${u.id}`;
+const payLabel = (mode?: string) => (mode === 'upi' ? 'UPI' : 'Cash');
+const typeLabel = (type?: string) => (type === 'wifi' ? 'WiFi' : 'Cable');
 
 const SalonExpensePage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('entry');
   const [amount, setAmount] = useState('');
   const [expenseFor, setExpenseFor] = useState('');
+  const [payMode, setPayMode] = useState<PayMode>('cash');
+  const [customerType, setCustomerType] = useState<CustomerType>('cable');
   const [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [userId, setUserId] = useState('');
+  const [filterPayMode, setFilterPayMode] = useState('');
+  const [filterType, setFilterType] = useState('');
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [data, setData] = useState<SalonExpenseReport | null>(null);
   const [editing, setEditing] = useState<SalonExpenseRow | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editFor, setEditFor] = useState('');
+  const [editPayMode, setEditPayMode] = useState<PayMode>('cash');
+  const [editType, setEditType] = useState<CustomerType>('cable');
 
-  const search = useCallback(async (fromDate = from, toDate = to, nextUser = userId) => {
+  const search = useCallback(async (
+    fromDate = from,
+    toDate = to,
+    nextUser = userId,
+    nextPay = filterPayMode,
+    nextType = filterType
+  ) => {
     if (!fromDate || !toDate) {
       toast.warning('Select from and to date');
       return;
@@ -46,7 +62,14 @@ const SalonExpensePage: React.FC = () => {
     try {
       setData(
         salonExpenseData<SalonExpenseReport>(
-          await salonExpenseApi.report(fromDate, toDate, undefined, nextUser ? Number(nextUser) : undefined)
+          await salonExpenseApi.report(
+            fromDate,
+            toDate,
+            undefined,
+            nextUser ? Number(nextUser) : undefined,
+            nextPay || undefined,
+            nextType || undefined
+          )
         )
       );
     } catch (err) {
@@ -54,7 +77,7 @@ const SalonExpensePage: React.FC = () => {
     } finally {
       setBusy(false);
     }
-  }, [from, to, userId]);
+  }, [from, to, userId, filterPayMode, filterType]);
 
   useEffect(() => {
     usersApi
@@ -72,6 +95,8 @@ const SalonExpensePage: React.FC = () => {
     setEditing(row);
     setEditAmount(String(row.amount ?? ''));
     setEditFor(row.expenseFor || '');
+    setEditPayMode(row.payMode === 'upi' ? 'upi' : 'cash');
+    setEditType(row.customerType === 'wifi' ? 'wifi' : 'cable');
   };
 
   const saveEdit = async () => {
@@ -87,7 +112,12 @@ const SalonExpensePage: React.FC = () => {
     }
     setBusy(true);
     try {
-      await salonExpenseApi.update(editing.id, { amount: value, expenseFor: editFor.trim() });
+      await salonExpenseApi.update(editing.id, {
+        amount: value,
+        expenseFor: editFor.trim(),
+        payMode: editPayMode,
+        customerType: editType,
+      });
       toast.success('Expense updated');
       setEditing(null);
       await search();
@@ -111,10 +141,17 @@ const SalonExpensePage: React.FC = () => {
     }
     setBusy(true);
     try {
-      await salonExpenseApi.save({ amount: value, expenseFor: expenseFor.trim() });
+      await salonExpenseApi.save({
+        amount: value,
+        expenseFor: expenseFor.trim(),
+        payMode,
+        customerType,
+      });
       toast.success('Expense saved');
       setAmount('');
       setExpenseFor('');
+      setPayMode('cash');
+      setCustomerType('cable');
     } catch (err) {
       toast.error(salonExpenseError(err, 'Could not save expense'));
     } finally {
@@ -176,6 +213,26 @@ const SalonExpensePage: React.FC = () => {
               autoComplete="off"
             />
 
+            <label className="qb-label">Payment</label>
+            <div className="cust-types">
+              <button type="button" className={`cust-type${payMode === 'cash' ? ' on' : ''}`} onClick={() => setPayMode('cash')}>
+                <i className="fas fa-money-bill" /> Cash
+              </button>
+              <button type="button" className={`cust-type${payMode === 'upi' ? ' on' : ''}`} onClick={() => setPayMode('upi')}>
+                <i className="fas fa-mobile-alt" /> UPI
+              </button>
+            </div>
+
+            <label className="qb-label">Type</label>
+            <div className="cust-types">
+              <button type="button" className={`cust-type${customerType === 'cable' ? ' on' : ''}`} onClick={() => setCustomerType('cable')}>
+                <i className="fas fa-tv" /> Cable
+              </button>
+              <button type="button" className={`cust-type${customerType === 'wifi' ? ' on' : ''}`} onClick={() => setCustomerType('wifi')}>
+                <i className="fas fa-wifi" /> WiFi
+              </button>
+            </div>
+
             <button className="qb-save" type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </button>
@@ -204,6 +261,22 @@ const SalonExpensePage: React.FC = () => {
                       {userLabel(u)}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div className="mst-fg">
+                <label>Payment</label>
+                <select className="mst-sel" value={filterPayMode} onChange={(e) => setFilterPayMode(e.target.value)}>
+                  <option value="">Cash / UPI</option>
+                  <option value="cash">Cash</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+              <div className="mst-fg">
+                <label>Type</label>
+                <select className="mst-sel" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                  <option value="">Cable / WiFi</option>
+                  <option value="cable">Cable</option>
+                  <option value="wifi">WiFi</option>
                 </select>
               </div>
               <div className="mst-actions">
@@ -235,6 +308,24 @@ const SalonExpensePage: React.FC = () => {
                     <div className="qb-kpi-v">{n(data.grandTotal)}</div>
                   </div>
                 </div>
+                <div className="qb-kpi">
+                  <span className="qb-kpi-ico">
+                    <i className="fas fa-wallet" />
+                  </span>
+                  <div>
+                    <div className="qb-kpi-l">Cash / UPI</div>
+                    <div className="qb-kpi-v">{n(data.cashTotal)} / {n(data.upiTotal)}</div>
+                  </div>
+                </div>
+                <div className="qb-kpi">
+                  <span className="qb-kpi-ico">
+                    <i className="fas fa-tv" />
+                  </span>
+                  <div>
+                    <div className="qb-kpi-l">Cable / WiFi</div>
+                    <div className="qb-kpi-v">{n(data.cableTotal)} / {n(data.wifiTotal)}</div>
+                  </div>
+                </div>
               </div>
               <div className="mst-card">
                 <div className="mst-card-h">
@@ -252,6 +343,8 @@ const SalonExpensePage: React.FC = () => {
                           <th>Date</th>
                           <th>Time</th>
                           <th>Expense For</th>
+                          <th>Payment</th>
+                          <th>Type</th>
                           <th className="num">Amount</th>
                           <th>User</th>
                           <th style={{ width: 52 }}>Edit</th>
@@ -264,6 +357,8 @@ const SalonExpensePage: React.FC = () => {
                             <td>{row.expenseDate}</td>
                             <td>{row.expenseTime}</td>
                             <td>{row.expenseFor}</td>
+                            <td>{payLabel(row.payMode)}</td>
+                            <td>{typeLabel(row.customerType)}</td>
                             <td className="num">{n(row.amount)}</td>
                             <td>{row.userName || '—'}</td>
                             <td>
@@ -276,7 +371,7 @@ const SalonExpensePage: React.FC = () => {
                       </tbody>
                       <tfoot>
                         <tr>
-                          <th colSpan={4}>Total</th>
+                          <th colSpan={6}>Total</th>
                           <th className="num">{n(data.grandTotal)}</th>
                           <th colSpan={2} />
                         </tr>
@@ -315,6 +410,20 @@ const SalonExpensePage: React.FC = () => {
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
                 />
+              </div>
+              <div className="mst-fg">
+                <label>Payment</label>
+                <select className="mst-sel" value={editPayMode} onChange={(e) => setEditPayMode(e.target.value as PayMode)}>
+                  <option value="cash">Cash</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+              <div className="mst-fg">
+                <label>Type</label>
+                <select className="mst-sel" value={editType} onChange={(e) => setEditType(e.target.value as CustomerType)}>
+                  <option value="cable">Cable</option>
+                  <option value="wifi">WiFi</option>
+                </select>
               </div>
               <div className="mst-fg span-2">
                 <label>Expense For</label>

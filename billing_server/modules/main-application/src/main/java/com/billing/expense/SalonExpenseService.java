@@ -19,10 +19,14 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class SalonExpenseService {
+
+    private static final Set<String> PAY_MODES = Set.of("cash", "upi");
+    private static final Set<String> TYPES = Set.of("cable", "wifi");
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -33,6 +37,8 @@ public class SalonExpenseService {
                         "id INT UNSIGNED NOT NULL AUTO_INCREMENT," +
                         "amount DECIMAL(12,2) NOT NULL," +
                         "expense_for VARCHAR(255) NOT NULL," +
+                        "pay_mode VARCHAR(10) NOT NULL DEFAULT 'cash'," +
+                        "customer_type VARCHAR(10) NOT NULL DEFAULT 'cable'," +
                         "shop_id VARCHAR(255) DEFAULT NULL," +
                         "uid INT DEFAULT NULL," +
                         "exp_date DATE DEFAULT NULL," +
@@ -40,6 +46,20 @@ public class SalonExpenseService {
                         "PRIMARY KEY (id)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        ensureColumn("pay_mode", "VARCHAR(10) NOT NULL DEFAULT 'cash' AFTER expense_for");
+        ensureColumn("customer_type", "VARCHAR(10) NOT NULL DEFAULT 'cable' AFTER pay_mode");
+    }
+
+    private void ensureColumn(String column, String definition) {
+        Integer exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'salon_expenses' AND COLUMN_NAME = ?",
+                Integer.class,
+                column
+        );
+        if (exists == null || exists == 0) {
+            jdbcTemplate.execute("ALTER TABLE salon_expenses ADD COLUMN " + column + " " + definition);
+        }
     }
 
     @Transactional
@@ -59,18 +79,22 @@ public class SalonExpenseService {
         if (uid == null) {
             throw new RuntimeException("Not signed in");
         }
+        String payMode = normalizePayMode(request.getPayMode());
+        String customerType = normalizeType(request.getCustomerType());
 
         KeyHolder keys = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO salon_expenses (amount, expense_for, shop_id, uid, exp_date, exp_time) " +
-                            "VALUES (?, ?, ?, ?, CURDATE(), CURTIME())",
+                    "INSERT INTO salon_expenses (amount, expense_for, pay_mode, customer_type, shop_id, uid, exp_date, exp_time) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, CURDATE(), CURTIME())",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setDouble(1, request.getAmount());
             ps.setString(2, expenseFor);
-            ps.setString(3, shopId);
-            ps.setLong(4, uid);
+            ps.setString(3, payMode);
+            ps.setString(4, customerType);
+            ps.setString(5, shopId);
+            ps.setLong(6, uid);
             return ps;
         }, keys);
         Number key = keys.getKey();
@@ -93,10 +117,14 @@ public class SalonExpenseService {
         if (shopId == null || shopId.isBlank()) {
             throw new RuntimeException("Shop ID is missing from session");
         }
+        String payMode = normalizePayMode(request.getPayMode());
+        String customerType = normalizeType(request.getCustomerType());
         int updated = jdbcTemplate.update(
-                "UPDATE salon_expenses SET amount = ?, expense_for = ? WHERE id = ? AND shop_id = ?",
+                "UPDATE salon_expenses SET amount = ?, expense_for = ?, pay_mode = ?, customer_type = ? WHERE id = ? AND shop_id = ?",
                 request.getAmount(),
                 expenseFor,
+                payMode,
+                customerType,
                 id,
                 shopId
         );
@@ -105,25 +133,40 @@ public class SalonExpenseService {
         }
     }
 
-    public SalonExpenseReportData report(String from, String to, String shopId, Long userId, AppUser user) {
+    public SalonExpenseReportData report(String from, String to, String shopId, Long userId, String payMode,
+                                         String customerType, AppUser user) {
         String sessionShop = user == null ? "" : user.shopId();
         if (sessionShop != null && !sessionShop.isBlank()) {
-            return report(from, to, sessionShop, userId);
+            return report(from, to, sessionShop, userId, payMode, customerType);
         }
-        return report(from, to, shopId, userId);
+        return report(from, to, shopId, userId, payMode, customerType);
     }
 
     public SalonExpenseReportData report(String from, String to, String shopId) {
-        return report(from, to, shopId, null);
+        return report(from, to, shopId, null, null, null);
     }
 
     public SalonExpenseReportData report(String from, String to, String shopId, Long userId) {
+        return report(from, to, shopId, userId, null, null);
+    }
+
+    public SalonExpenseReportData report(String from, String to, String shopId, Long userId, String payMode,
+                                         String customerType) {
         if (from == null || from.isBlank() || to == null || to.isBlank()) {
             throw new RuntimeException("From date and to date are required");
         }
+        String mode = payMode == null ? "" : payMode.trim().toLowerCase();
+        if (!mode.isEmpty() && !PAY_MODES.contains(mode)) {
+            throw new RuntimeException("Choose Cash or UPI");
+        }
+        String type = customerType == null ? "" : customerType.trim().toLowerCase();
+        if (!type.isEmpty() && !TYPES.contains(type)) {
+            throw new RuntimeException("Choose Cable or WiFi");
+        }
         StringBuilder sql = new StringBuilder(
-                "SELECT se.id, se.amount, se.expense_for AS expenseFor, se.shop_id AS shopId, " +
-                        "IFNULL(o.shop_name, se.shop_id) AS shopName, se.uid AS userId, " +
+                "SELECT se.id, se.amount, se.expense_for AS expenseFor, " +
+                        "IFNULL(se.pay_mode,'cash') AS payMode, IFNULL(se.customer_type,'cable') AS customerType, " +
+                        "se.shop_id AS shopId, IFNULL(o.shop_name, se.shop_id) AS shopName, se.uid AS userId, " +
                         "IFNULL(NULLIF(u.fullName,''), u.user_name) AS userName, " +
                         "DATE_FORMAT(se.exp_date, '%d-%m-%Y') AS expenseDate, " +
                         "TIME_FORMAT(se.exp_time, '%h:%i %p') AS expenseTime " +
@@ -143,6 +186,14 @@ public class SalonExpenseService {
             sql.append(" AND se.uid = ?");
             args.add(userId);
         }
+        if (!mode.isEmpty()) {
+            sql.append(" AND LOWER(IFNULL(se.pay_mode,'cash')) = ?");
+            args.add(mode);
+        }
+        if (!type.isEmpty()) {
+            sql.append(" AND LOWER(IFNULL(se.customer_type,'cable')) = ?");
+            args.add(type);
+        }
         sql.append(" ORDER BY se.exp_date DESC, se.exp_time DESC, se.id DESC");
 
         List<SalonExpenseRow> rows = jdbcTemplate.query(sql.toString(), (rs, i) -> mapRow(rs), args.toArray());
@@ -150,11 +201,46 @@ public class SalonExpenseService {
         data.setRows(rows);
         data.setCount(rows.size());
         double total = 0;
+        double cash = 0;
+        double upi = 0;
+        double cable = 0;
+        double wifi = 0;
         for (SalonExpenseRow row : rows) {
-            total += row.getAmount() == null ? 0 : row.getAmount();
+            double amount = row.getAmount() == null ? 0 : row.getAmount();
+            total += amount;
+            if ("upi".equalsIgnoreCase(row.getPayMode())) {
+                upi += amount;
+            } else {
+                cash += amount;
+            }
+            if ("wifi".equalsIgnoreCase(row.getCustomerType())) {
+                wifi += amount;
+            } else {
+                cable += amount;
+            }
         }
         data.setGrandTotal(total);
+        data.setCashTotal(cash);
+        data.setUpiTotal(upi);
+        data.setCableTotal(cable);
+        data.setWifiTotal(wifi);
         return data;
+    }
+
+    private String normalizePayMode(String raw) {
+        String mode = raw == null ? "" : raw.trim().toLowerCase();
+        if (!PAY_MODES.contains(mode)) {
+            throw new RuntimeException("Choose Cash or UPI");
+        }
+        return mode;
+    }
+
+    private String normalizeType(String raw) {
+        String type = raw == null ? "" : raw.trim().toLowerCase();
+        if (!TYPES.contains(type)) {
+            throw new RuntimeException("Choose Cable or WiFi");
+        }
+        return type;
     }
 
     private SalonExpenseRow mapRow(ResultSet rs) throws SQLException {
@@ -162,6 +248,8 @@ public class SalonExpenseService {
         row.setId(rs.getLong("id"));
         row.setAmount(rs.getDouble("amount"));
         row.setExpenseFor(rs.getString("expenseFor"));
+        row.setPayMode(rs.getString("payMode"));
+        row.setCustomerType(rs.getString("customerType"));
         row.setShopId(rs.getString("shopId"));
         row.setShopName(rs.getString("shopName"));
         long userId = rs.getLong("userId");

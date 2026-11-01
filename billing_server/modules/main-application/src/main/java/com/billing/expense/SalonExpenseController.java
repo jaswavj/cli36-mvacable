@@ -37,9 +37,11 @@ public class SalonExpenseController {
             @RequestParam String from,
             @RequestParam String to,
             @RequestParam(required = false) String shopId,
-            @RequestParam(required = false) Long userId
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String payMode,
+            @RequestParam(required = false) String customerType
     ) {
-        return ok(salonExpenseService.report(from, to, shopId, userId, currentUser()));
+        return ok(salonExpenseService.report(from, to, shopId, userId, payMode, customerType, currentUser()));
     }
 
     private AppUser currentUser() {
