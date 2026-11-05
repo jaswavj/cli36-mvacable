@@ -12,6 +12,7 @@ import {
 import { usersApi, usersData } from '../../../api/users/users-api-service';
 import '../master/Master.css';
 import '../customer/Customer.css';
+import '../collection/Collection.css';
 import '../quick-bill/QuickBill.css';
 
 type Tab = 'entry' | 'report';
@@ -38,10 +39,12 @@ const SalonExpensePage: React.FC = () => {
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [data, setData] = useState<SalonExpenseReport | null>(null);
   const [editing, setEditing] = useState<SalonExpenseRow | null>(null);
+  const [cancelling, setCancelling] = useState<SalonExpenseRow | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editFor, setEditFor] = useState('');
   const [editPayMode, setEditPayMode] = useState<PayMode>('cash');
   const [editType, setEditType] = useState<CustomerType>('cable');
+  const [reason, setReason] = useState('');
 
   const search = useCallback(async (
     fromDate = from,
@@ -92,11 +95,18 @@ const SalonExpensePage: React.FC = () => {
   }, [tab]);
 
   const openEdit = (row: SalonExpenseRow) => {
+    setCancelling(null);
     setEditing(row);
     setEditAmount(String(row.amount ?? ''));
     setEditFor(row.expenseFor || '');
     setEditPayMode(row.payMode === 'upi' ? 'upi' : 'cash');
     setEditType(row.customerType === 'wifi' ? 'wifi' : 'cable');
+  };
+
+  const openCancel = (row: SalonExpenseRow) => {
+    setEditing(null);
+    setCancelling(row);
+    setReason('');
   };
 
   const saveEdit = async () => {
@@ -123,6 +133,25 @@ const SalonExpensePage: React.FC = () => {
       await search();
     } catch (err) {
       toast.error(salonExpenseError(err, 'Could not update expense'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveCancel = async () => {
+    if (!cancelling) return;
+    if (!reason.trim()) {
+      toast.warning('Enter cancel reason');
+      return;
+    }
+    setBusy(true);
+    try {
+      await salonExpenseApi.cancel(cancelling.id, reason.trim());
+      toast.success('Expense cancelled');
+      setCancelling(null);
+      await search();
+    } catch (err) {
+      toast.error(salonExpenseError(err, 'Could not cancel expense'));
     } finally {
       setBusy(false);
     }
@@ -327,7 +356,7 @@ const SalonExpensePage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="mst-card">
+              <div className="mst-card col-report">
                 <div className="mst-card-h">
                   <span>Expense details</span>
                   <span className="qb-bills-total">Total {n(data.grandTotal)}</span>
@@ -335,7 +364,34 @@ const SalonExpensePage: React.FC = () => {
                 {(data.rows || []).length === 0 ? (
                   <div className="mst-empty">No expense found for the selected dates.</div>
                 ) : (
-                  <div className="mst-table-wrap">
+                  <>
+                    <div className="col-rep-list">
+                      {data.rows.map((row) => (
+                        <article key={row.id} className="col-rep-item">
+                          <div className="col-rep-item-h">
+                            <strong>{row.expenseFor}</strong>
+                            <span className="col-rep-amt">₹ {n(row.amount)}</span>
+                          </div>
+                          <div className="col-rep-item-m">
+                            <span>
+                              {row.expenseDate} {row.expenseTime}
+                            </span>
+                            <span>{payLabel(row.payMode)}</span>
+                            <span>{typeLabel(row.customerType)}</span>
+                            <span>{row.userName || '—'}</span>
+                          </div>
+                          <div className="col-rep-item-f" style={{ justifyContent: 'flex-end' }}>
+                            <button className="mst-btn mst-btn-outline" type="button" onClick={() => openEdit(row)}>
+                              Edit
+                            </button>
+                            <button className="mst-btn mst-btn-danger" type="button" onClick={() => openCancel(row)}>
+                              Cancel
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="mst-table-wrap col-rep-table">
                     <table className="mst-table">
                       <thead>
                         <tr>
@@ -347,7 +403,7 @@ const SalonExpensePage: React.FC = () => {
                           <th>Type</th>
                           <th className="num">Amount</th>
                           <th>User</th>
-                          <th style={{ width: 52 }}>Edit</th>
+                          <th style={{ width: 90 }}>Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -365,6 +421,9 @@ const SalonExpensePage: React.FC = () => {
                               <button className="mst-icon-btn" type="button" title="Edit" onClick={() => openEdit(row)}>
                                 <i className="fas fa-edit" />
                               </button>
+                              <button className="mst-icon-btn danger" type="button" title="Cancel" onClick={() => openCancel(row)}>
+                                <i className="fas fa-times" />
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -378,6 +437,7 @@ const SalonExpensePage: React.FC = () => {
                       </tfoot>
                     </table>
                   </div>
+                  </>
                 )}
               </div>
             </>
@@ -437,11 +497,52 @@ const SalonExpensePage: React.FC = () => {
               </div>
             </div>
             <div className="cust-modal-f">
+              <button className="mst-btn mst-btn-danger" type="button" disabled={busy} onClick={() => openCancel(editing)}>
+                Cancel Expense
+              </button>
               <button className="mst-btn mst-btn-outline" type="button" disabled={busy} onClick={() => setEditing(null)}>
                 Close
               </button>
               <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={saveEdit}>
                 {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelling && (
+        <div className="cust-modal" onClick={() => !busy && setCancelling(null)}>
+          <div className="cust-modal-box narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="cust-modal-h">
+              <div>
+                <h3>Cancel Expense</h3>
+                <p>
+                  {cancelling.expenseFor} · ₹ {n(cancelling.amount)} · {cancelling.expenseDate} {cancelling.expenseTime}
+                </p>
+              </div>
+              <button className="mst-icon-btn" type="button" onClick={() => setCancelling(null)}>
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="cust-modal-b">
+              <div className="mst-fg span-2">
+                <label>Reason</label>
+                <textarea
+                  className="mst-inp"
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Why is this expense cancelled?"
+                />
+              </div>
+            </div>
+            <div className="cust-modal-f">
+              <button className="mst-btn mst-btn-outline" type="button" disabled={busy} onClick={() => setCancelling(null)}>
+                Close
+              </button>
+              <button className="mst-btn mst-btn-danger" type="button" disabled={busy} onClick={saveCancel}>
+                {busy ? 'Saving…' : 'Cancel Expense'}
               </button>
             </div>
           </div>

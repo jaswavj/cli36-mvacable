@@ -30,4 +30,6 @@ public class CollectionReceiptData {
     private Double balance;
     private String collectedBy;
     private String amountInWords;
+    private Long customerPk;
+    private String paidDateIso;
 }

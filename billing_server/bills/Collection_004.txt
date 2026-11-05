@@ -1,0 +1,15 @@
+           MVA CABLEs            
+          NAGAPATTINAMs          
+---------------------------------
+NAME :      ARUNKUMAR ARUNACHALAM
+Customer ID :          3133374329
+---------------------------------
+BILL NO:                      004
+Date                   05/11/2026
+MONTH                         SEP
+TIME IN                  11:51 AM
+---------------------------------
+AMOUNT                        300
+PAID                         CASH
+             Welcome             
+

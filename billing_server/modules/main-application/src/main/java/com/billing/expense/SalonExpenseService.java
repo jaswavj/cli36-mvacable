@@ -1,6 +1,7 @@
 package com.billing.expense;
 
 import com.billing.data.AppUser;
+import com.billing.expense.dto.SalonExpenseCancelRequest;
 import com.billing.expense.dto.SalonExpenseReportData;
 import com.billing.expense.dto.SalonExpenseRow;
 import com.billing.expense.dto.SalonExpenseSaveRequest;
@@ -48,6 +49,25 @@ public class SalonExpenseService {
         );
         ensureColumn("pay_mode", "VARCHAR(10) NOT NULL DEFAULT 'cash' AFTER expense_for");
         ensureColumn("customer_type", "VARCHAR(10) NOT NULL DEFAULT 'cable' AFTER pay_mode");
+        ensureColumn("is_cancelled", "TINYINT NOT NULL DEFAULT 0 AFTER exp_time");
+        jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS salon_expense_logs (" +
+                        "id INT UNSIGNED NOT NULL AUTO_INCREMENT," +
+                        "expense_id INT NOT NULL," +
+                        "action VARCHAR(20) NOT NULL," +
+                        "old_amount DECIMAL(12,2) DEFAULT NULL," +
+                        "new_amount DECIMAL(12,2) DEFAULT NULL," +
+                        "old_expense_for VARCHAR(255) DEFAULT NULL," +
+                        "new_expense_for VARCHAR(255) DEFAULT NULL," +
+                        "reason TEXT," +
+                        "uid INT DEFAULT NULL," +
+                        "shop_id VARCHAR(255) DEFAULT NULL," +
+                        "log_date DATE DEFAULT NULL," +
+                        "log_time TIME DEFAULT NULL," +
+                        "PRIMARY KEY (id)," +
+                        "KEY idx_salon_expense_log (shop_id, log_date)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
     }
 
     private void ensureColumn(String column, String definition) {
@@ -119,8 +139,10 @@ public class SalonExpenseService {
         }
         String payMode = normalizePayMode(request.getPayMode());
         String customerType = normalizeType(request.getCustomerType());
+        OpenExpense current = openExpense(id, shopId);
         int updated = jdbcTemplate.update(
-                "UPDATE salon_expenses SET amount = ?, expense_for = ?, pay_mode = ?, customer_type = ? WHERE id = ? AND shop_id = ?",
+                "UPDATE salon_expenses SET amount = ?, expense_for = ?, pay_mode = ?, customer_type = ? " +
+                        "WHERE id = ? AND shop_id = ? AND IFNULL(is_cancelled,0) = 0",
                 request.getAmount(),
                 expenseFor,
                 payMode,
@@ -129,8 +151,34 @@ public class SalonExpenseService {
                 shopId
         );
         if (updated == 0) {
+            throw new RuntimeException("Expense not found or already cancelled");
+        }
+        writeLog(id, "edit", current.amount(), request.getAmount(), current.expenseFor(), expenseFor, "edit", user);
+    }
+
+    @Transactional
+    public void cancel(Long id, SalonExpenseCancelRequest request, AppUser user) {
+        if (id == null || id <= 0) {
             throw new RuntimeException("Expense not found");
         }
+        String reason = request == null || request.getReason() == null ? "" : request.getReason().trim();
+        if (reason.isEmpty()) {
+            throw new RuntimeException("Cancel reason is required");
+        }
+        String shopId = user == null ? "" : user.shopId();
+        if (shopId == null || shopId.isBlank()) {
+            throw new RuntimeException("Shop ID is missing from session");
+        }
+        OpenExpense current = openExpense(id, shopId);
+        int updated = jdbcTemplate.update(
+                "UPDATE salon_expenses SET is_cancelled = 1 WHERE id = ? AND shop_id = ? AND IFNULL(is_cancelled,0) = 0",
+                id,
+                shopId
+        );
+        if (updated == 0) {
+            throw new RuntimeException("Expense not found or already cancelled");
+        }
+        writeLog(id, "cancel", current.amount(), current.amount(), current.expenseFor(), current.expenseFor(), reason, user);
     }
 
     public SalonExpenseReportData report(String from, String to, String shopId, Long userId, String payMode,
@@ -173,7 +221,7 @@ public class SalonExpenseService {
                         "FROM salon_expenses se " +
                         "LEFT JOIN users u ON u.id = se.uid " +
                         "LEFT JOIN outlets o ON o.shop_id = se.shop_id " +
-                        "WHERE se.exp_date BETWEEN ? AND ?"
+                        "WHERE se.exp_date BETWEEN ? AND ? AND IFNULL(se.is_cancelled,0) = 0"
         );
         List<Object> args = new ArrayList<>();
         args.add(from);
@@ -243,6 +291,38 @@ public class SalonExpenseService {
         return type;
     }
 
+    private OpenExpense openExpense(Long id, String shopId) {
+        List<OpenExpense> rows = jdbcTemplate.query(
+                "SELECT amount, expense_for FROM salon_expenses " +
+                        "WHERE id = ? AND shop_id = ? AND IFNULL(is_cancelled,0) = 0 LIMIT 1",
+                (rs, i) -> new OpenExpense(rs.getDouble("amount"), rs.getString("expense_for")),
+                id,
+                shopId
+        );
+        if (rows.isEmpty()) {
+            throw new RuntimeException("Expense not found or already cancelled");
+        }
+        return rows.get(0);
+    }
+
+    private void writeLog(Long expenseId, String action, Double oldAmount, Double newAmount,
+                          String oldExpenseFor, String newExpenseFor, String reason, AppUser user) {
+        jdbcTemplate.update(
+                "INSERT INTO salon_expense_logs (expense_id, action, old_amount, new_amount, old_expense_for, " +
+                        "new_expense_for, reason, uid, shop_id, log_date, log_time) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), CURTIME())",
+                expenseId,
+                action,
+                oldAmount,
+                newAmount,
+                oldExpenseFor,
+                newExpenseFor,
+                reason,
+                user == null ? null : user.getId(),
+                user == null ? null : user.shopId()
+        );
+    }
+
     private SalonExpenseRow mapRow(ResultSet rs) throws SQLException {
         SalonExpenseRow row = new SalonExpenseRow();
         row.setId(rs.getLong("id"));
@@ -258,5 +338,8 @@ public class SalonExpenseService {
         row.setExpenseDate(rs.getString("expenseDate"));
         row.setExpenseTime(rs.getString("expenseTime"));
         return row;
+    }
+
+    private record OpenExpense(double amount, String expenseFor) {
     }
 }

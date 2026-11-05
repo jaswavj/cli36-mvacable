@@ -6,7 +6,7 @@ import { BillingApiService } from '../../api/billing/billing-api-service';
 import { OrderListApiService } from '../../api/orders/order-list-api-service';
 import { RootState } from '../../state/store';
 import { A4Invoice } from './A4Invoice';
-import { printOnClientPrinter } from '../../utils/local-pos-print';
+import { handleThermalDispatch } from '../../api/billing/local-print-agent';
 import './BillingPage.css';
 
 type Product = {
@@ -541,34 +541,12 @@ const BillingPage: React.FC = () => {
     }
     try {
       const res: any = await api.dispatchPrint(billNo);
-      const data = res?.data || {};
-      if (!res?.success) {
-        toast.error(data.error || 'Thermal print failed. Check printer name in Company Details.');
-        return;
+      const kind = await handleThermalDispatch(res, async (no) => {
+        await printA4SameTab(no || billNo);
+      });
+      if (kind === 'printed' || kind === 'local') {
+        toast.success('Receipt printed');
       }
-      if (data.type === 'a4') {
-        await printA4SameTab(data.billNo || billNo);
-        return;
-      }
-      if (data.type === 'thermal' || data.type === 'printed' || data.type === 'txt') {
-        const local = await printOnClientPrinter({
-          printerName: data.printerName,
-          rawBase64: data.rawBase64,
-        });
-        if (local.ok) {
-          toast.success(local.message || 'Receipt printed and cut');
-          return;
-        }
-        const pos: any = await api.posPrint(billNo);
-        const posData = pos?.data || {};
-        if (pos?.success && (posData.type === 'printed' || posData.type === 'txt')) {
-          toast.success(posData.message || 'ESC/POS printed');
-          return;
-        }
-        toast.error(posData.error || 'ESC/POS print failed. Check printer name in Company Details.');
-        return;
-      }
-      toast.error('Thermal print did not run. Check printer name in Company Details.');
     } catch (e: any) {
       toast.error(e?.response?.data?.data?.error || e?.message || 'Thermal print failed');
     }

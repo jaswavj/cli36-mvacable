@@ -36,6 +36,9 @@ export class SalonExpenseApiService {
   update = (id: number, payload: { amount: number; expenseFor: string; payMode: PayMode; customerType: CustomerType }) =>
     this.http.post(`/v1/salon-expenses/${id}/update`, payload);
 
+  cancel = (id: number, reason: string) =>
+    this.http.post(`/v1/salon-expenses/${id}/cancel`, { reason });
+
   report = (
     from: string,
     to: string,

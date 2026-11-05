@@ -1,0 +1,15 @@
+                   MVA CABLEs                   
+                 NAGAPATTINAMs                  
+------------------------------------------------
+NAME :                         ARUNACHALAM FULAD
+Customer ID :                         3133371675
+------------------------------------------------
+BILL NO:                                     002
+Date                                  05/11/2026
+MONTH                                        SEP
+TIME IN                                 11:41 AM
+------------------------------------------------
+AMOUNT                                       300
+PAID                                        CASH
+                    Welcome                     
+

@@ -588,7 +588,7 @@ public class CollectionService {
                         "IFNULL(NULLIF(u.fullName,''), u.user_name) AS userName " +
                         "FROM salon_expenses se " +
                         "LEFT JOIN users u ON u.id = se.uid " +
-                        "WHERE se.shop_id = ? AND se.exp_date BETWEEN ? AND ? " +
+                        "WHERE se.shop_id = ? AND IFNULL(se.is_cancelled,0) = 0 AND se.exp_date BETWEEN ? AND ? " +
                         "ORDER BY se.exp_date DESC, se.id DESC",
                 (rs, i) -> {
                     AccountExpenseRow row = new AccountExpenseRow();

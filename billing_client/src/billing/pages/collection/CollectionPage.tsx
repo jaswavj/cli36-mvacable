@@ -12,8 +12,8 @@ import {
   type CollectionReceipt,
   type PayMode,
 } from '../../../api/collection/collection-api-service';
+import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { CollectionA4Receipt } from './CollectionA4Receipt';
-import { printOnClientPrinter } from '../../../utils/local-pos-print';
 import '../master/Master.css';
 import '../customer/Customer.css';
 import '../PrintBill.css';
@@ -184,6 +184,9 @@ const CollectionPage: React.FC = () => {
         includePending: keepRecharge || skipCurrentRecharge,
       });
       toast.success(`${row.label} collected by ${payLabel(payMode)}`);
+      if (next.lastPaymentId) {
+        void printCollection(next.lastPaymentId);
+      }
       inputRef.current?.select();
     } catch (err) {
       toast.error(collectionError(err, 'Could not save collection'));
@@ -196,37 +199,15 @@ const CollectionPage: React.FC = () => {
     if (!paymentId) return;
     try {
       const res: any = await collectionApi.dispatchPrint(paymentId);
-      const payload = res?.data || {};
-      if (!res?.success) {
-        toast.error(payload.error || 'Print failed. Check printer name in Company Details.');
-        return;
-      }
-      if (payload.type === 'a4') {
+      const kind = await handleThermalDispatch(res, async () => {
         const receipt = collectionData<CollectionReceipt>(await collectionApi.printReceipt(paymentId));
         setA4Receipt(receipt);
-        return;
+      });
+      if (kind === 'printed' || kind === 'local') {
+        toast.success('Bill printed');
       }
-      if (payload.type === 'thermal' || payload.type === 'printed' || payload.type === 'txt') {
-        const local = await printOnClientPrinter({
-          printerName: payload.printerName,
-          rawBase64: payload.rawBase64,
-        });
-        if (local.ok) {
-          toast.success(local.message);
-          return;
-        }
-        const pos: any = await collectionApi.posPrint(paymentId);
-        const posData = pos?.data || {};
-        if (pos?.success && (posData.type === 'printed' || posData.type === 'txt')) {
-          toast.success(posData.message || 'ESC/POS printed');
-          return;
-        }
-        toast.error(posData.error || 'ESC/POS print failed. Check printer name in Company Details.');
-        return;
-      }
-      toast.error('Print did not run. Check printer name in Company Details.');
     } catch (err: any) {
-      toast.error(err?.response?.data?.data?.error || collectionError(err, 'Print failed'));
+      toast.error(err?.response?.data?.data?.error || err?.message || collectionError(err, 'Print failed'));
     }
   };
 

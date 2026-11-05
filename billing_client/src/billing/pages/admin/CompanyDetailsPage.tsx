@@ -10,6 +10,9 @@ const empty = {
   address: '',
   gstin: '',
   printType: 1,
+  thermalPrintType: 2,
+  thermalTxtFile: 0,
+  thermalPaperMm: 58,
   printerName: '',
   bankDetails: '',
   barcodePrinter: '',
@@ -22,7 +25,16 @@ const CompanyDetailsPage: React.FC = () => {
 
   useEffect(() => {
     adminApi.company()
-      .then((res) => setForm({ ...empty, ...adminData<typeof empty>(res) }))
+      .then((res) => {
+        const data = adminData<typeof empty>(res) || empty;
+        setForm({
+          ...empty,
+          ...data,
+          thermalPrintType: data.thermalPrintType === 1 ? 1 : 2,
+          thermalTxtFile: data.thermalTxtFile === 1 ? 1 : 0,
+          thermalPaperMm: data.thermalPaperMm === 80 ? 80 : 58,
+        });
+      })
       .catch((err) => toast.error(adminError(err, 'Could not load company details')));
   }, []);
 
@@ -48,6 +60,9 @@ const CompanyDetailsPage: React.FC = () => {
         address: form.address.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         printerName: form.printType === 1 ? form.printerName.trim() : '',
+        thermalPrintType: form.thermalPrintType === 1 ? 1 : 2,
+        thermalTxtFile: form.thermalTxtFile === 1 ? 1 : 0,
+        thermalPaperMm: form.thermalPaperMm === 80 ? 80 : 58,
         bankDetails: form.bankDetails.trim(),
         barcodePrinter: form.barcodePrinter.trim(),
       });
@@ -91,13 +106,64 @@ const CompanyDetailsPage: React.FC = () => {
             </select>
           </div>
           {form.printType === 1 && (
-            <div className="mst-fg">
-              <label>Printer Name <span className="req">*</span></label>
-              <input className="mst-inp" value={form.printerName} onChange={(e) => setForm({ ...form, printerName: e.target.value })} placeholder="Printer share name" />
-              <div className="mst-note">
-                Exact Windows printer name on the billing PC, e.g. POS-80. Cloud printing uses this PC&apos;s printer. Run print-agent\start-print-agent.bat on this PC for silent thermal print.
+            <>
+              <div className="mst-fg">
+                <label>Thermal Print Type <span className="req">*</span></label>
+                <select
+                  className="mst-sel"
+                  value={form.thermalPrintType}
+                  onChange={(e) => setForm({ ...form, thermalPrintType: Number(e.target.value) })}
+                >
+                  <option value={1}>Local deploy</option>
+                  <option value={2}>Cloud deploy</option>
+                </select>
+                <div className="mst-note">
+                  {form.thermalPrintType === 2
+                    ? 'Cloud sends the slip to this PC. Keep print-agent\\start-print-agent.bat open while collecting.'
+                    : 'Local prints on this machine using the Windows printer name below.'}
+                </div>
               </div>
-            </div>
+              <div className="mst-fg">
+                <label>Printer Name <span className="req">*</span></label>
+                <input
+                  className="mst-inp"
+                  value={form.printerName}
+                  onChange={(e) => setForm({ ...form, printerName: e.target.value })}
+                  placeholder="Windows printer name"
+                />
+                <div className="mst-note">Exact Windows printer name, e.g. BP3010 or POS-58.</div>
+              </div>
+              <div className="mst-fg">
+                <label>Paper Size <span className="req">*</span></label>
+                <select
+                  className="mst-sel"
+                  value={form.thermalPaperMm}
+                  onChange={(e) => setForm({ ...form, thermalPaperMm: Number(e.target.value) })}
+                >
+                  <option value={58}>58mm — 33 characters</option>
+                  <option value={80}>80mm — 48 characters</option>
+                </select>
+                <div className="mst-note">
+                  {form.thermalPaperMm === 80
+                    ? '80mm uses a wider slip (48 dashes).'
+                    : '58mm matches the sample slip (33 dashes).'}
+                </div>
+              </div>
+              {form.thermalPrintType === 1 && (
+                <div className="mst-fg">
+                  <label>Save bill as text if print fails</label>
+                  <select
+                    className="mst-sel"
+                    value={form.thermalTxtFile}
+                    onChange={(e) => setForm({ ...form, thermalTxtFile: Number(e.target.value) })}
+                  >
+                    <option value={0}>No</option>
+                    <option value={1}>Yes — save in bills folder</option>
+                  </select>
+                  <div className="mst-note">If the thermal printer fails, save a .txt copy in the bills folder. Use this for local development testing.</div>
+                </div>
+              )}
+            </>
           )}
           <div className="mst-fg">
             <label>Barcode Printer Name</label>

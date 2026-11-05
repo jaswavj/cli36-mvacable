@@ -7,6 +7,7 @@ public class PrintDispatchData {
     private String type;
     private String billNo;
     private String printerName;
+    private String payload;
     private String rawBase64;
     private String plainText;
     private String message;

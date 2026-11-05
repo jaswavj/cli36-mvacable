@@ -3,10 +3,9 @@ package com.billing.collection;
 import com.billing.admin.AdminService;
 import com.billing.admin.dto.CompanyDetailsData;
 import com.billing.collection.dto.CollectionReceiptData;
-import com.billing.customer.CableCustomerService;
-import com.billing.customer.dto.CableCustomerRow;
 import com.billing.data.AppUser;
 import com.billing.pos.AmountInWords;
+import com.billing.pos.WinspoolRawPrinter;
 import com.billing.pos.dto.PrintDispatchData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,32 +41,23 @@ public class CollectionPrintService {
     private static final byte[] FEED_4_LINES = {0x1B, 0x64, 0x04};
     private static final byte[] CUT_PARTIAL = {0x1D, 0x56, 0x01};
     private static final byte[] CUT_FEED = {0x1D, 0x56, 0x41, 0x03};
-    private static final int WIDTH_58 = 32;
+    private static final int WIDTH_58 = 33;
     private static final int WIDTH_80 = 48;
     private static final DecimalFormat DF = new DecimalFormat("0.00");
-    private static final DateTimeFormatter MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
-
     private final JdbcTemplate jdbcTemplate;
     private final AdminService adminService;
-    private final CableCustomerService cableCustomerService;
 
     public PrintDispatchData dispatch(Long paymentId, AppUser user) {
         CollectionReceiptData receipt = receipt(paymentId, user);
-        PrintDispatchData data = new PrintDispatchData();
-        data.setBillNo(receipt.getReceiptNo());
-        data.setPrinterName(receipt.getPrinterName());
         int printType = receipt.getPrintType() == null ? 1 : receipt.getPrintType();
         if (printType == 2) {
+            PrintDispatchData data = new PrintDispatchData();
             data.setType("a4");
+            data.setBillNo(receipt.getReceiptNo());
             data.setMessage("Opening A4 print preview");
             return data;
         }
-        int width = receiptWidth(receipt.getPrinterName());
-        data.setType("thermal");
-        data.setRawBase64(Base64.getEncoder().encodeToString(buildReceipt(receipt, width)));
-        data.setPlainText(buildPlainText(receipt, width));
-        data.setMessage("Print on client printer: " + (receipt.getPrinterName() == null ? "" : receipt.getPrinterName()));
-        return data;
+        return printReceipt(paymentId, user);
     }
 
     public CollectionReceiptData receipt(Long paymentId, AppUser user) {
@@ -82,11 +72,17 @@ public class CollectionPrintService {
             throw new RuntimeException("Collection receipt not found");
         }
         List<CollectionReceiptData> rows = jdbcTemplate.query(
-                "SELECT c.id, c.customer_id, c.collection_month, c.amount, IFNULL(c.due_amount, 0) AS due_amount, " +
-                        "c.pay_mode, DATE_FORMAT(c.paid_date, '%d-%m-%Y') AS paidDate, " +
+                "SELECT c.id, c.customer_id, c.customer_pk, c.collection_month, c.amount, IFNULL(c.due_amount, 0) AS due_amount, " +
+                        "c.pay_mode, c.paid_date, DATE_FORMAT(c.paid_date, '%d/%m/%Y') AS paidDate, " +
                         "TIME_FORMAT(c.paid_time, '%h:%i %p') AS paidTime, " +
+                        "IFNULL(cu.name,'') AS customerName, IFNULL(cu.customer_type,'') AS customerType, " +
+                        "IFNULL(cu.mobile,'') AS mobile, IFNULL(cu.address,'') AS address, IFNULL(cu.area,'') AS area, " +
+                        "IFNULL(cu.monthly_amount,0) AS monthlyAmount, " +
+                        "DATE_FORMAT(cu.joining_date, '%d-%m-%Y') AS joiningDate, " +
                         "IFNULL(NULLIF(u.fullName,''), u.user_name) AS collectedBy " +
-                        "FROM cable_collections c LEFT JOIN users u ON u.id = c.uid " +
+                        "FROM cable_collections c " +
+                        "LEFT JOIN cable_customers cu ON cu.id = c.customer_pk " +
+                        "LEFT JOIN users u ON u.id = c.uid " +
                         "WHERE c.id = ? AND c.shop_id = ? AND IFNULL(c.is_cancelled,0) = 0 LIMIT 1",
                 (rs, i) -> {
                     CollectionReceiptData data = new CollectionReceiptData();
@@ -94,13 +90,24 @@ public class CollectionPrintService {
                     data.setCustomerId(rs.getString("customer_id"));
                     YearMonth month = YearMonth.from(rs.getDate("collection_month").toLocalDate());
                     data.setMonth(month.atDay(1).toString());
-                    data.setMonthLabel(month.format(MONTH_LABEL));
+                    data.setMonthLabel(month.format(DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH)).toUpperCase());
                     data.setAmount(round2(rs.getDouble("amount")));
                     data.setDue(round2(rs.getDouble("due_amount")));
                     data.setPayMode(rs.getString("pay_mode"));
                     data.setPaidDate(rs.getString("paidDate"));
                     data.setPaidTime(rs.getString("paidTime"));
                     data.setCollectedBy(rs.getString("collectedBy"));
+                    data.setCustomerType(rs.getString("customerType"));
+                    data.setCustomerName(rs.getString("customerName"));
+                    data.setMobile(rs.getString("mobile"));
+                    data.setAddress(rs.getString("address"));
+                    data.setArea(rs.getString("area"));
+                    data.setJoiningDate(rs.getString("joiningDate"));
+                    long customerPk = rs.getLong("customer_pk");
+                    data.setCustomerPk(rs.wasNull() ? null : customerPk);
+                    java.sql.Date paidDate = rs.getDate("paid_date");
+                    data.setPaidDateIso(paidDate == null ? null : paidDate.toString());
+                    data.setPaidAmount(rs.getDouble("monthlyAmount"));
                     return data;
                 },
                 paymentId,
@@ -110,30 +117,33 @@ public class CollectionPrintService {
             throw new RuntimeException("Collection receipt not found");
         }
         CollectionReceiptData data = rows.get(0);
-        CableCustomerRow customer = cableCustomerService.findActiveByCustomerId(user, data.getCustomerId());
         CompanyDetailsData company = adminService.company();
-        Double paidTotal = jdbcTemplate.queryForObject(
+        Long customerPk = data.getCustomerPk();
+        java.sql.Date paidDate = data.getPaidDateIso() == null ? null : java.sql.Date.valueOf(data.getPaidDateIso());
+        double monthly = data.getPaidAmount() == null ? 0 : data.getPaidAmount();
+        Double paidTotal = customerPk == null ? 0d : jdbcTemplate.queryForObject(
                 "SELECT IFNULL(SUM(amount), 0) FROM cable_collections WHERE shop_id = ? AND customer_pk = ? AND collection_month = ? AND IFNULL(is_cancelled,0) = 0",
                 Double.class,
                 shopId,
-                customer.getId(),
+                customerPk,
                 java.sql.Date.valueOf(java.time.LocalDate.parse(data.getMonth()))
         );
-        double due = data.getDue() != null && data.getDue() > 0 ? data.getDue() : nz(customer.getMonthlyAmount());
+        Integer billNo = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM cable_collections WHERE shop_id = ? AND paid_date = ? AND IFNULL(is_cancelled,0) = 0 AND id <= ?",
+                Integer.class,
+                shopId,
+                paidDate,
+                paymentId
+        );
+        double due = data.getDue() != null && data.getDue() > 0 ? data.getDue() : monthly;
         double paid = paidTotal == null ? 0 : paidTotal;
-        data.setReceiptNo("COL-" + data.getId());
+        data.setReceiptNo(String.format("%03d", billNo == null || billNo < 1 ? 1 : billNo));
         data.setPrintType(company.getPrintType() == null ? 1 : company.getPrintType());
         data.setPrinterName(nz(company.getPrinterName()));
         data.setCompanyName(nz(company.getShopName()));
         data.setCompanyAddress(nz(company.getAddress()));
         data.setCompanyGstin(nz(company.getGstin()));
         data.setCompanyBankDetails(nz(company.getBankDetails()));
-        data.setCustomerType(customer.getCustomerType());
-        data.setCustomerName(customer.getName());
-        data.setMobile(customer.getMobile());
-        data.setAddress(customer.getAddress());
-        data.setArea(customer.getArea());
-        data.setJoiningDate(customer.getJoiningDate());
         data.setDue(round2(due));
         data.setPaidAmount(round2(paid));
         data.setBalance(Math.max(0, round2(due - paid)));
@@ -143,36 +153,41 @@ public class CollectionPrintService {
 
     public PrintDispatchData printReceipt(Long paymentId, AppUser user) {
         CollectionReceiptData receipt = receipt(paymentId, user);
-        int width = receiptWidth(receipt.getPrinterName());
-        PrintService service = findPrintService(receipt.getPrinterName());
-        if (service != null) {
-            try {
-                byte[] bytes = buildReceipt(receipt, width);
-                if (!sendRaw(service.getName(), bytes)) {
-                    throw new RuntimeException("Could not send raw data to " + service.getName());
-                }
-                PrintDispatchData data = new PrintDispatchData();
-                data.setType("printed");
-                data.setBillNo(receipt.getReceiptNo());
-                data.setMessage("Printed to: " + service.getName());
-                return data;
-            } catch (Exception ex) {
-                throw new RuntimeException("Print error: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
+        CompanyDetailsData company = adminService.company();
+        String printerName = firstName(receipt.getPrinterName(), company.getPrinterName());
+        int width = receiptWidth(company, printerName);
+        byte[] bytes = buildReceipt(receipt, width);
+        int thermalPrintType = company.getThermalPrintType() == null ? 2 : company.getThermalPrintType();
+        if (thermalPrintType == 2) {
+            if (printerName.isBlank()) {
+                throw new RuntimeException("Printer name not found.");
             }
-        }
-        try {
-            String txtPath = writeTxt(receipt, width);
-            File file = new File(txtPath);
+            String payload = Base64.getEncoder().encodeToString(bytes);
             PrintDispatchData data = new PrintDispatchData();
-            data.setType("txt");
+            data.setType("local");
             data.setBillNo(receipt.getReceiptNo());
-            data.setTxtPath(txtPath.replace('\\', '/'));
-            data.setTxtFile(file.getName());
-            data.setMessage("No printer found. TXT saved to: " + data.getTxtPath());
+            data.setPrinterName(printerName);
+            data.setPayload(payload);
+            data.setRawBase64(payload);
+            data.setMessage("Send to print agent on this PC. Keep start-print-agent.bat open.");
             return data;
-        } catch (Exception ex) {
-            throw new RuntimeException("Could not save receipt: " + ex.getMessage());
         }
+        if (printerName.isBlank()) {
+            saveBillTxtOnError(company, receipt, width);
+            throw new RuntimeException("Printer name not found.");
+        }
+        PrintService service = findPrintService(printerName);
+        String localName = service != null ? service.getName() : printerName;
+        if (!printOnThisMachine(localName, printerName, bytes)) {
+            saveBillTxtOnError(company, receipt, width);
+            throw new RuntimeException("Printer name not found.");
+        }
+        PrintDispatchData data = new PrintDispatchData();
+        data.setType("printed");
+        data.setBillNo(receipt.getReceiptNo());
+        data.setPrinterName(localName);
+        data.setMessage("Printed to: " + localName);
+        return data;
     }
 
     private byte[] buildReceipt(CollectionReceiptData receipt, int width) {
@@ -185,50 +200,37 @@ public class CollectionPrintService {
         write(out, nz(receipt.getCompanyName()) + "\n");
         write(out, BOLD_OFF);
         writeAddress(out, receipt.getCompanyAddress());
-        if (!blank(receipt.getCompanyGstin())) {
-            write(out, "GSTIN: " + receipt.getCompanyGstin() + "\n");
-        }
-        write(out, divider(width));
-        write(out, BOLD_ON);
-        write(out, "COLLECTION RECEIPT\n");
-        write(out, BOLD_OFF);
-        write(out, divider(width));
         write(out, ALIGN_LEFT);
-        String date = nz(receipt.getPaidDate());
-        write(out, padRight("Rcpt: " + nz(receipt.getReceiptNo()), width - date.length()) + date + "\n");
-        if (!blank(receipt.getPaidTime())) {
-            write(out, "Time: " + receipt.getPaidTime() + "\n");
-        }
-        write(out, "Cust: " + nz(receipt.getCustomerName()) + "\n");
-        write(out, "ID: " + nz(receipt.getCustomerId()) + "\n");
-        write(out, "Type: " + typeLabel(receipt.getCustomerType()) + "\n");
-        if (!blank(receipt.getMobile())) {
-            write(out, "Ph: " + receipt.getMobile() + "\n");
-        }
-        if (!blank(receipt.getArea())) {
-            write(out, "Area: " + receipt.getArea() + "\n");
-        }
         write(out, divider(width));
-        write(out, "Month: " + nz(receipt.getMonthLabel()) + "\n");
-        write(out, "Mode: " + payLabel(receipt.getPayMode()) + "\n");
+        write(out, kv("NAME :", nz(receipt.getCustomerName()), width));
+        write(out, kv("Customer ID :", nz(receipt.getCustomerId()), width));
         write(out, divider(width));
-        write(out, formatTotal("Due:", "Rs " + DF.format(n(receipt.getDue())), width));
+        write(out, kv("BILL NO:", nz(receipt.getReceiptNo()), width));
+        write(out, kv("Date", nz(receipt.getPaidDate()), width));
+        write(out, kv("MONTH", nz(receipt.getMonthLabel()), width));
+        write(out, kv("TIME IN", nz(receipt.getPaidTime()), width));
+        write(out, divider(width));
         write(out, BOLD_ON);
-        write(out, formatTotal("Paid now:", "Rs " + DF.format(n(receipt.getAmount())), width));
+        write(out, kv("AMOUNT", money(receipt.getAmount()), width));
+        write(out, kv("PAID", payLabel(receipt.getPayMode()), width));
         write(out, BOLD_OFF);
-        write(out, formatTotal("Total paid:", "Rs " + DF.format(n(receipt.getPaidAmount())), width));
-        write(out, formatTotal("Balance:", "Rs " + DF.format(n(receipt.getBalance())), width));
-        write(out, divider(width));
         write(out, ALIGN_CENTER);
-        write(out, nz(receipt.getAmountInWords()).toUpperCase() + "\n");
-        if (!blank(receipt.getCollectedBy())) {
-            write(out, "Collected by: " + receipt.getCollectedBy() + "\n");
-        }
-        write(out, "Thank You\n");
+        write(out, "Welcome\n");
         write(out, FEED_4_LINES);
         write(out, CUT_FEED);
         write(out, CUT_PARTIAL);
         return out.toByteArray();
+    }
+
+    private void saveBillTxtOnError(CompanyDetailsData company, CollectionReceiptData receipt, int width) {
+        if (company.getThermalTxtFile() == null || company.getThermalTxtFile() != 1) {
+            return;
+        }
+        try {
+            writeTxt(receipt, width);
+        } catch (Exception ignored) {
+            // keep the printer error as the main failure
+        }
     }
 
     private String writeTxt(CollectionReceiptData receipt, int width) throws Exception {
@@ -249,46 +251,59 @@ public class CollectionPrintService {
         if (!blank(receipt.getCompanyAddress())) {
             for (String line : receipt.getCompanyAddress().split("\\r?\\n")) {
                 if (!blank(line)) {
-                    sb.append(center(line.trim(), width)).append('\n');
+                    sb.append(center(formatAddressLine(line.trim()), width)).append('\n');
                 }
             }
         }
-        if (!blank(receipt.getCompanyGstin())) {
-            sb.append(center("GSTIN: " + receipt.getCompanyGstin(), width)).append('\n');
-        }
         sb.append(divider(width));
-        sb.append(center("COLLECTION RECEIPT", width)).append('\n');
+        sb.append(kv("NAME :", nz(receipt.getCustomerName()), width));
+        sb.append(kv("Customer ID :", nz(receipt.getCustomerId()), width));
         sb.append(divider(width));
-        String date = nz(receipt.getPaidDate());
-        sb.append(padRight("Rcpt: " + nz(receipt.getReceiptNo()), width - date.length())).append(date).append('\n');
-        sb.append("Cust: ").append(nz(receipt.getCustomerName())).append('\n');
-        sb.append("ID: ").append(nz(receipt.getCustomerId())).append('\n');
-        sb.append("Type: ").append(typeLabel(receipt.getCustomerType())).append('\n');
-        if (!blank(receipt.getMobile())) {
-            sb.append("Ph: ").append(receipt.getMobile()).append('\n');
-        }
-        if (!blank(receipt.getArea())) {
-            sb.append("Area: ").append(receipt.getArea()).append('\n');
-        }
+        sb.append(kv("BILL NO:", nz(receipt.getReceiptNo()), width));
+        sb.append(kv("Date", nz(receipt.getPaidDate()), width));
+        sb.append(kv("MONTH", nz(receipt.getMonthLabel()), width));
+        sb.append(kv("TIME IN", nz(receipt.getPaidTime()), width));
         sb.append(divider(width));
-        sb.append("Month: ").append(nz(receipt.getMonthLabel())).append('\n');
-        sb.append("Mode: ").append(payLabel(receipt.getPayMode())).append('\n');
-        sb.append(divider(width));
-        sb.append(formatTotal("Due:", "Rs " + DF.format(n(receipt.getDue())), width));
-        sb.append(formatTotal("Paid now:", "Rs " + DF.format(n(receipt.getAmount())), width));
-        sb.append(formatTotal("Total paid:", "Rs " + DF.format(n(receipt.getPaidAmount())), width));
-        sb.append(formatTotal("Balance:", "Rs " + DF.format(n(receipt.getBalance())), width));
-        sb.append(divider(width));
-        sb.append(center(nz(receipt.getAmountInWords()).toUpperCase(), width)).append('\n');
-        if (!blank(receipt.getCollectedBy())) {
-            sb.append(center("Collected by: " + receipt.getCollectedBy(), width)).append('\n');
-        }
-        sb.append(center("Thank You", width)).append("\n\n");
+        sb.append(kv("AMOUNT", money(receipt.getAmount()), width));
+        sb.append(kv("PAID", payLabel(receipt.getPayMode()), width));
+        sb.append(center("Welcome", width)).append("\n\n");
         return sb.toString();
     }
 
-    private int receiptWidth(String printerName) {
-        return printerName != null && printerName.contains("58") ? WIDTH_58 : WIDTH_80;
+    private int receiptWidth(CompanyDetailsData company, String printerName) {
+        int paperMm = company.getThermalPaperMm() == null ? 0 : company.getThermalPaperMm();
+        if (paperMm == 80) {
+            return WIDTH_80;
+        }
+        if (paperMm == 58) {
+            return WIDTH_58;
+        }
+        String name = printerName == null ? "" : printerName.toLowerCase();
+        if (name.contains("80") && !name.contains("58")) {
+            return WIDTH_80;
+        }
+        return WIDTH_58;
+    }
+
+    private String firstName(String... names) {
+        if (names == null) {
+            return "";
+        }
+        for (String name : names) {
+            if (name != null && !name.isBlank()) {
+                return name.trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean printOnThisMachine(String resolvedName, String configuredName, byte[] receipt) {
+        if (WinspoolRawPrinter.print(resolvedName, receipt)) {
+            return true;
+        }
+        return configuredName != null
+                && !configuredName.equalsIgnoreCase(resolvedName)
+                && WinspoolRawPrinter.print(configuredName, receipt);
     }
 
     private boolean sendRaw(String printerName, byte[] data) {
@@ -337,9 +352,41 @@ public class CollectionPrintService {
         }
         for (String line : address.split("\\r?\\n")) {
             if (!blank(line)) {
-                write(out, line.trim() + "\n");
+                write(out, formatAddressLine(line.trim()) + "\n");
             }
         }
+    }
+
+    private String kv(String label, String value, int width) {
+        String left = label == null ? "" : label;
+        String right = value == null ? "" : value.trim();
+        if (left.length() + 1 + right.length() > width) {
+            return left + "\n" + padLeft(right, width) + "\n";
+        }
+        return padRight(left, width - right.length()) + right + "\n";
+    }
+
+    private String formatAddressLine(String line) {
+        String trimmed = line.trim();
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (digits.length() >= 8 && digits.length() <= 15 && !trimmed.toLowerCase().contains("phone")) {
+            return "Phone: " + trimmed;
+        }
+        return trimmed;
+    }
+
+    private String money(Double value) {
+        double amount = n(value);
+        if (Math.abs(amount - Math.round(amount)) < 0.005) {
+            return String.valueOf(Math.round(amount));
+        }
+        return DF.format(amount);
+    }
+
+    private String padLeft(String s, int width) {
+        if (s == null) s = "";
+        if (s.length() >= width) return s.substring(0, width);
+        return " ".repeat(width - s.length()) + s;
     }
 
     private String formatTotal(String label, String value, int width) {
@@ -377,7 +424,14 @@ public class CollectionPrintService {
     }
 
     private String payLabel(String mode) {
-        return "upi".equalsIgnoreCase(mode) ? "UPI" : "CASH";
+        if (mode == null || mode.isBlank()) {
+            return "CASH";
+        }
+        String value = mode.trim().toLowerCase();
+        if ("upi".equals(value) || value.contains("gpay") || value.contains("g-pay") || value.contains("google")) {
+            return "GPAY";
+        }
+        return "CASH";
     }
 
     private boolean blank(String value) {

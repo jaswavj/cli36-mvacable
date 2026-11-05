@@ -2,6 +2,7 @@ package com.billing.expense;
 
 import com.billing.core.response.ResponseDO;
 import com.billing.data.AppUser;
+import com.billing.expense.dto.SalonExpenseCancelRequest;
 import com.billing.expense.dto.SalonExpenseSaveRequest;
 import com.billing.security.PlatformSecurityContext;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,12 @@ public class SalonExpenseController {
     @PostMapping("/{id}/update")
     public ResponseDO update(@PathVariable Long id, @RequestBody SalonExpenseSaveRequest request) {
         salonExpenseService.update(id, request, currentUser());
+        return ok(true);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseDO cancel(@PathVariable Long id, @RequestBody SalonExpenseCancelRequest request) {
+        salonExpenseService.cancel(id, request, currentUser());
         return ok(true);
     }
 

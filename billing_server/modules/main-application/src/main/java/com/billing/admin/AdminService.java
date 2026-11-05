@@ -21,6 +21,7 @@ import com.billing.admin.dto.PaymentInfoData;
 import com.billing.admin.dto.PaymentUpdateRequest;
 import com.billing.admin.dto.ReturnSaveRequest;
 import com.billing.admin.dto.SimpleIdName;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -41,9 +42,18 @@ public class AdminService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    @PostConstruct
+    public void ensureCompanyColumns() {
+        ensureCompanyColumn("thermal_print_type", "TINYINT NOT NULL DEFAULT 2 AFTER print_type");
+        ensureCompanyColumn("thermal_txt_file", "TINYINT NOT NULL DEFAULT 0 AFTER thermal_print_type");
+        ensureCompanyColumn("thermal_paper_mm", "SMALLINT NOT NULL DEFAULT 58 AFTER printer_name");
+    }
+
     public CompanyDetailsData company() {
         List<CompanyDetailsData> rows = jdbcTemplate.query(
-                "SELECT id, shop_name, address, gstin, print_type, printer_name, bank_details, barcode_printer FROM company_details LIMIT 1",
+                "SELECT id, shop_name, address, gstin, print_type, IFNULL(thermal_print_type,2) AS thermal_print_type, " +
+                        "IFNULL(thermal_txt_file,0) AS thermal_txt_file, IFNULL(thermal_paper_mm,58) AS thermal_paper_mm, " +
+                        "printer_name, bank_details, barcode_printer FROM company_details LIMIT 1",
                 (rs, i) -> {
                     CompanyDetailsData data = new CompanyDetailsData();
                     data.setId(rs.getLong("id"));
@@ -51,6 +61,9 @@ public class AdminService {
                     data.setAddress(nz(rs.getString("address")));
                     data.setGstin(nz(rs.getString("gstin")));
                     data.setPrintType(rs.getInt("print_type"));
+                    data.setThermalPrintType(rs.getInt("thermal_print_type"));
+                    data.setThermalTxtFile(normalizeFlag(rs.getInt("thermal_txt_file")));
+                    data.setThermalPaperMm(normalizePaperMm(rs.getInt("thermal_paper_mm")));
                     data.setPrinterName(nz(rs.getString("printer_name")));
                     data.setBankDetails(nz(rs.getString("bank_details")));
                     data.setBarcodePrinter(nz(rs.getString("barcode_printer")));
@@ -60,6 +73,9 @@ public class AdminService {
         if (rows.isEmpty()) {
             CompanyDetailsData empty = new CompanyDetailsData();
             empty.setPrintType(1);
+            empty.setThermalPrintType(2);
+            empty.setThermalTxtFile(0);
+            empty.setThermalPaperMm(58);
             empty.setShopName("");
             empty.setAddress("");
             empty.setGstin("");
@@ -83,6 +99,12 @@ public class AdminService {
         if (printType == 1 && printerName.isEmpty()) {
             throw new RuntimeException("Printer name is required for thermal printing");
         }
+        int thermalPrintType = request.getThermalPrintType() == null ? 2 : request.getThermalPrintType();
+        if (thermalPrintType != 1 && thermalPrintType != 2) {
+            thermalPrintType = 2;
+        }
+        int thermalTxtFile = normalizeFlag(request.getThermalTxtFile());
+        int thermalPaperMm = normalizePaperMm(request.getThermalPaperMm());
         String gstin = nz(request.getGstin()).trim().toUpperCase();
         if (!gstin.isEmpty() && gstin.length() != 15) {
             throw new RuntimeException("GSTIN must be 15 characters");
@@ -92,13 +114,13 @@ public class AdminService {
         Long id = jdbcTemplate.query("SELECT id FROM company_details LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null);
         if (id != null) {
             jdbcTemplate.update(
-                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, printer_name=?, bank_details=?, barcode_printer=? WHERE id=?",
-                    shopName, address, gstin, printType, printerName, bankDetails, barcodePrinter, id
+                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, thermal_print_type=?, thermal_txt_file=?, thermal_paper_mm=?, printer_name=?, bank_details=?, barcode_printer=? WHERE id=?",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, thermalPaperMm, printerName, bankDetails, barcodePrinter, id
             );
         } else {
             jdbcTemplate.update(
-                    "INSERT INTO company_details (shop_name, address, gstin, print_type, printer_name, bank_details, barcode_printer) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    shopName, address, gstin, printType, printerName, bankDetails, barcodePrinter
+                    "INSERT INTO company_details (shop_name, address, gstin, print_type, thermal_print_type, thermal_txt_file, thermal_paper_mm, printer_name, bank_details, barcode_printer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, thermalPaperMm, printerName, bankDetails, barcodePrinter
             );
         }
     }
@@ -844,6 +866,26 @@ public class AdminService {
 
     private double scale(BigDecimal value) {
         return value.setScale(3, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private void ensureCompanyColumn(String name, String definition) {
+        Integer exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'company_details' AND COLUMN_NAME = ?",
+                Integer.class,
+                name
+        );
+        if (exists == null || exists == 0) {
+            jdbcTemplate.execute("ALTER TABLE company_details ADD COLUMN " + name + " " + definition);
+        }
+    }
+
+    private int normalizeFlag(Integer value) {
+        return value != null && value == 1 ? 1 : 0;
+    }
+
+    private int normalizePaperMm(Integer value) {
+        return value != null && value == 80 ? 80 : 58;
     }
 
     private String required(String value, String message) {

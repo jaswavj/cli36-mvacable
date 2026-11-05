@@ -45,7 +45,7 @@ public class PosPrinterService {
     private static final byte[] FEED_4_LINES = {0x1B, 0x64, 0x04};
     private static final byte[] CUT_PARTIAL = {0x1D, 0x56, 0x01};
     private static final byte[] CUT_FEED = {0x1D, 0x56, 0x41, 0x03};
-    private static final int WIDTH_58 = 32;
+    private static final int WIDTH_58 = 33;
     private static final int WIDTH_80 = 48;
     private static final DecimalFormat DF = new DecimalFormat("0.00");
 
@@ -62,58 +62,87 @@ public class PosPrinterService {
             data.setMessage("Opening A4 print preview");
             return data;
         }
-        PrintBillData bill = readService.printBill(billNo);
-        int width = receiptWidth(bill.getPrinterName());
-        PrintDispatchData data = new PrintDispatchData();
-        data.setType("thermal");
-        data.setBillNo(billNo);
-        data.setPrinterName(bill.getPrinterName());
-        try {
-            data.setRawBase64(Base64.getEncoder().encodeToString(buildReceipt(bill, width)));
-            data.setPlainText(buildPlainText(bill, width));
-        } catch (Exception ex) {
-            throw new RuntimeException("Could not prepare receipt: " + ex.getMessage());
-        }
-        data.setMessage("Print on client printer: " + (bill.getPrinterName() == null ? "" : bill.getPrinterName()));
-        return data;
+        return printReceipt(billNo);
     }
 
     public PrintDispatchData printReceipt(String billNo) {
+        CompanyDetailsData company = adminService.company();
         PrintBillData bill = readService.printBill(billNo);
-        int width = receiptWidth(bill.getPrinterName());
-        PrintService service = findPrintService(bill.getPrinterName());
-        if (service != null) {
-            try {
-                byte[] receipt = buildReceipt(bill, width);
-                if (!sendRaw(service.getName(), receipt)) {
-                    throw new RuntimeException("Could not send raw data to " + service.getName());
-                }
-                PrintDispatchData data = new PrintDispatchData();
-                data.setType("printed");
-                data.setBillNo(billNo);
-                data.setMessage("Printed to: " + service.getName());
-                return data;
-            } catch (Exception ex) {
-                throw new RuntimeException("Print error: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
-            }
-        }
+        String printerName = firstName(bill.getPrinterName(), company.getPrinterName());
+        int width = receiptWidth(company, printerName);
+        byte[] receipt;
         try {
-            String txtPath = writeTxt(bill, width);
-            File file = new File(txtPath);
-            PrintDispatchData data = new PrintDispatchData();
-            data.setType("txt");
-            data.setBillNo(billNo);
-            data.setTxtPath(txtPath.replace('\\', '/'));
-            data.setTxtFile(file.getName());
-            data.setMessage("No printer found. TXT saved to: " + data.getTxtPath());
-            return data;
+            receipt = buildReceipt(bill, width);
         } catch (Exception ex) {
-            throw new RuntimeException("Could not save receipt: " + ex.getMessage());
+            throw new RuntimeException("Could not build receipt: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
         }
+        int thermalPrintType = company.getThermalPrintType() == null ? 2 : company.getThermalPrintType();
+        if (thermalPrintType == 2) {
+            if (printerName.isBlank()) {
+                throw new RuntimeException("Printer name not found.");
+            }
+            String payload = Base64.getEncoder().encodeToString(receipt);
+            PrintDispatchData data = new PrintDispatchData();
+            data.setType("local");
+            data.setBillNo(billNo);
+            data.setPrinterName(printerName);
+            data.setPayload(payload);
+            data.setRawBase64(payload);
+            data.setMessage("Send to print agent on this PC. Keep start-print-agent.bat open.");
+            return data;
+        }
+        if (printerName.isBlank()) {
+            saveBillTxtOnError(company, bill, width);
+            throw new RuntimeException("Printer name not found.");
+        }
+        PrintService service = findPrintService(printerName);
+        String localName = service != null ? service.getName() : printerName;
+        if (!printOnThisMachine(localName, printerName, receipt)) {
+            saveBillTxtOnError(company, bill, width);
+            throw new RuntimeException("Printer name not found.");
+        }
+        PrintDispatchData data = new PrintDispatchData();
+        data.setType("printed");
+        data.setBillNo(billNo);
+        data.setPrinterName(localName);
+        data.setMessage("Printed to: " + localName);
+        return data;
     }
 
-    private int receiptWidth(String printerName) {
-        return printerName != null && printerName.contains("58") ? WIDTH_58 : WIDTH_80;
+    private String firstName(String... names) {
+        if (names == null) {
+            return "";
+        }
+        for (String name : names) {
+            if (name != null && !name.isBlank()) {
+                return name.trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean printOnThisMachine(String resolvedName, String configuredName, byte[] receipt) {
+        if (WinspoolRawPrinter.print(resolvedName, receipt)) {
+            return true;
+        }
+        return configuredName != null
+                && !configuredName.equalsIgnoreCase(resolvedName)
+                && WinspoolRawPrinter.print(configuredName, receipt);
+    }
+
+    private int receiptWidth(CompanyDetailsData company, String printerName) {
+        int paperMm = company.getThermalPaperMm() == null ? 0 : company.getThermalPaperMm();
+        if (paperMm == 80) {
+            return WIDTH_80;
+        }
+        if (paperMm == 58) {
+            return WIDTH_58;
+        }
+        String name = printerName == null ? "" : printerName.toLowerCase();
+        if (name.contains("80") && !name.contains("58")) {
+            return WIDTH_80;
+        }
+        return WIDTH_58;
     }
 
     /**
@@ -158,6 +187,17 @@ public class PosPrinterService {
             }
         }
         return null;
+    }
+
+    private void saveBillTxtOnError(CompanyDetailsData company, PrintBillData bill, int width) {
+        if (company.getThermalTxtFile() == null || company.getThermalTxtFile() != 1) {
+            return;
+        }
+        try {
+            writeTxt(bill, width);
+        } catch (Exception ignored) {
+            // keep the printer error as the main failure
+        }
     }
 
     private String writeTxt(PrintBillData bill, int width) throws Exception {
