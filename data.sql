@@ -202,7 +202,7 @@ CREATE TABLE `cable_collections` (
   `is_cancelled` tinyint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `idx_cable_collection_month` (`shop_id`,`customer_pk`,`collection_month`)
-) ENGINE=InnoDB AUTO_INCREMENT=1643 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1647 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_collections` */
 
@@ -1848,7 +1848,11 @@ insert  into `cable_collections`(`id`,`customer_pk`,`customer_id`,`collection_mo
 (1639,390,'3121263773','2026-10-01',300.00,300.00,'cash','2026-10-31','18:00:22',32,'S01','',0),
 (1640,1162,'3106693417','2026-10-01',300.00,300.00,'cash','2026-10-31','18:20:42',31,'S01','',0),
 (1641,1638,'3106696710','2026-10-01',300.00,300.00,'upi','2026-10-31','18:21:39',31,'S01','',0),
-(1642,639,'3106693505','2026-10-01',300.00,300.00,'cash','2026-10-31','18:46:14',32,'S01','',0);
+(1642,639,'3106693505','2026-10-01',300.00,300.00,'cash','2026-10-31','18:46:14',32,'S01','',0),
+(1643,38,'3133379477','2026-09-01',30.00,270.00,'cash','2026-11-05','11:15:00',1,'S01','ss',0),
+(1644,121,'3133371675','2026-09-01',300.00,300.00,'cash','2026-11-05','11:41:33',1,'S01','s',0),
+(1645,121,'3133371675','2026-10-01',300.00,300.00,'cash','2026-11-05','11:49:01',1,'S01','a',0),
+(1646,124,'3133374329','2026-09-01',300.00,300.00,'cash','2026-11-05','11:51:12',1,'S01','a',0);
 
 /*Table structure for table `cable_customers` */
 
@@ -3720,7 +3724,7 @@ CREATE TABLE `cable_recharges` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cable_recharge_month` (`shop_id`,`customer_pk`,`recharge_year`,`recharge_month`),
   KEY `idx_cable_recharge_pending` (`shop_id`,`pending_amount`)
-) ENGINE=InnoDB AUTO_INCREMENT=1686 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1689 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `cable_recharges` */
 
@@ -3933,7 +3937,7 @@ insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,
 (207,100,'3106636145',2026,9,300.00,300.00,0.00,'2026-09-28','10:14:16','cash','2026-09-28','10:14:20',31,'S01'),
 (208,193,'3106757484',2026,9,300.00,300.00,0.00,'2026-09-28','10:15:11','cash','2026-09-28','10:15:13',31,'S01'),
 (209,374,'3133373704',2026,9,300.00,0.00,300.00,'2026-09-28','10:20:26',NULL,NULL,NULL,31,'S01'),
-(210,38,'3133379477',2026,9,270.00,240.00,30.00,'2026-09-28','10:23:40','cash','2026-09-28','10:23:58',32,'S01'),
+(210,38,'3133379477',2026,9,270.00,270.00,0.00,'2026-09-28','10:23:40','cash','2026-11-05','11:15:00',1,'S01'),
 (211,943,'3133372756',2026,9,300.00,300.00,0.00,'2026-09-28','10:24:00','cash','2026-09-28','10:24:03',31,'S01'),
 (212,997,'3133354386',2026,9,300.00,300.00,0.00,'2026-09-28','10:24:57','cash','2026-09-28','10:25:01',32,'S01'),
 (213,990,'3106693616',2026,9,270.00,270.00,0.00,'2026-09-28','10:33:29','cash','2026-09-28','10:33:33',32,'S01'),
@@ -4046,8 +4050,8 @@ insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,
 (322,308,'3106656794',2026,9,300.00,300.00,0.00,'2026-09-30','18:26:55','cash','2026-09-30','18:26:57',31,'S01'),
 (323,1133,'3133379710',2026,9,300.00,0.00,300.00,'2026-09-30','18:43:01','cash','2026-10-31','10:40:30',32,'S01'),
 (324,1440,'3121120779',2026,9,300.00,300.00,0.00,'2026-09-30','18:44:32','upi','2026-09-30','18:44:36',31,'S01'),
-(325,121,'3133371675',2026,9,300.00,0.00,300.00,'2026-09-30','18:45:55',NULL,NULL,NULL,31,'S01'),
-(326,124,'3133374329',2026,9,300.00,0.00,300.00,'2026-09-30','18:46:37',NULL,NULL,NULL,31,'S01'),
+(325,121,'3133371675',2026,9,300.00,300.00,0.00,'2026-09-30','18:45:55','cash','2026-11-05','11:41:33',1,'S01'),
+(326,124,'3133374329',2026,9,300.00,300.00,0.00,'2026-09-30','18:46:37','cash','2026-11-05','11:51:12',1,'S01'),
 (327,102,'3133385212',2026,9,300.00,300.00,0.00,'2026-09-30','18:57:10','cash','2026-09-30','18:57:13',31,'S01'),
 (328,1660,'senthilkumarakp@npm',2026,9,550.00,550.00,0.00,'2026-09-30','19:18:09','upi','2026-09-30','19:18:12',31,'S01'),
 (329,532,'3133379573',2026,9,300.00,300.00,0.00,'2026-09-30','19:22:21','cash','2026-09-30','19:22:23',31,'S01'),
@@ -5358,7 +5362,7 @@ insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,
 (1662,396,'3106693528',2026,10,300.00,300.00,0.00,'2026-10-30','18:10:42','cash','2026-10-30','18:10:48',32,'S01'),
 (1663,856,'3106623638',2026,10,300.00,300.00,0.00,'2026-10-30','18:16:30','cash','2026-10-30','18:16:32',31,'S01'),
 (1664,647,'3106741348',2026,10,300.00,300.00,0.00,'2026-10-30','18:41:01','cash','2026-10-30','18:41:04',32,'S01'),
-(1665,121,'3133371675',2026,10,300.00,0.00,300.00,'2026-10-30','19:02:35',NULL,NULL,NULL,31,'S01'),
+(1665,121,'3133371675',2026,10,300.00,300.00,0.00,'2026-10-30','19:02:35','cash','2026-11-05','11:49:01',1,'S01'),
 (1666,124,'3133374329',2026,10,300.00,0.00,300.00,'2026-10-30','19:03:46',NULL,NULL,NULL,31,'S01'),
 (1667,31,'3106771063',2026,10,300.00,300.00,0.00,'2026-10-30','19:04:53','cash','2026-10-30','19:04:55',31,'S01'),
 (1668,342,'3133355427',2026,10,270.00,270.00,0.00,'2026-10-30','19:09:30','cash','2026-10-30','19:09:35',32,'S01'),
@@ -5378,7 +5382,10 @@ insert  into `cable_recharges`(`id`,`customer_pk`,`customer_id`,`recharge_year`,
 (1682,390,'3121263773',2026,10,300.00,300.00,0.00,'2026-10-31','17:59:20','cash','2026-10-31','18:00:22',32,'S01'),
 (1683,1162,'3106693417',2026,10,300.00,300.00,0.00,'2026-10-31','18:20:31','cash','2026-10-31','18:20:42',31,'S01'),
 (1684,1638,'3106696710',2026,10,300.00,300.00,0.00,'2026-10-31','18:21:35','upi','2026-10-31','18:21:39',31,'S01'),
-(1685,639,'3106693505',2026,10,300.00,300.00,0.00,'2026-10-31','18:32:15','cash','2026-10-31','18:46:14',32,'S01');
+(1685,639,'3106693505',2026,10,300.00,300.00,0.00,'2026-10-31','18:32:15','cash','2026-10-31','18:46:14',32,'S01'),
+(1686,38,'3133379477',2026,11,270.00,0.00,270.00,'2026-11-05','11:14:51',NULL,NULL,NULL,1,'S01'),
+(1687,121,'3133371675',2026,11,300.00,0.00,300.00,'2026-11-05','11:41:28',NULL,NULL,NULL,1,'S01'),
+(1688,124,'3133374329',2026,11,300.00,0.00,300.00,'2026-11-05','11:51:05',NULL,NULL,NULL,1,'S01');
 
 /*Table structure for table `company_details` */
 
@@ -5390,7 +5397,10 @@ CREATE TABLE `company_details` (
   `address` text,
   `gstin` varchar(255) DEFAULT NULL,
   `print_type` int NOT NULL DEFAULT '0',
+  `thermal_print_type` tinyint NOT NULL DEFAULT '2',
+  `thermal_txt_file` tinyint NOT NULL DEFAULT '0',
   `printer_name` varchar(255) DEFAULT NULL,
+  `thermal_paper_mm` smallint NOT NULL DEFAULT '58',
   `bank_details` varchar(255) DEFAULT NULL,
   `barcode_printer` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
@@ -5398,8 +5408,8 @@ CREATE TABLE `company_details` (
 
 /*Data for the table `company_details` */
 
-insert  into `company_details`(`id`,`shop_name`,`address`,`gstin`,`print_type`,`printer_name`,`bank_details`,`barcode_printer`) values 
-(2,'MVA CABLE','NAGAPATTINAM','',1,'BP3010','Bank Details','AP4909');
+insert  into `company_details`(`id`,`shop_name`,`address`,`gstin`,`print_type`,`thermal_print_type`,`thermal_txt_file`,`printer_name`,`thermal_paper_mm`,`bank_details`,`barcode_printer`) values 
+(2,'MVA CABLE','NAGAPATTINAM','',1,1,1,'BP3010',58,'Bank Details','AP4909');
 
 /*Table structure for table `customer_account` */
 
@@ -5493,6 +5503,32 @@ insert  into `outlets`(`id`,`shop_id`,`shop_name`,`Address`) values
 (2,'S02','Chennai2','Chennai'),
 (3,'S03','Mylapore','Mylapore');
 
+/*Table structure for table `salon_expense_logs` */
+
+DROP TABLE IF EXISTS `salon_expense_logs`;
+
+CREATE TABLE `salon_expense_logs` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `expense_id` int NOT NULL,
+  `action` varchar(20) NOT NULL,
+  `old_amount` decimal(12,2) DEFAULT NULL,
+  `new_amount` decimal(12,2) DEFAULT NULL,
+  `old_expense_for` varchar(255) DEFAULT NULL,
+  `new_expense_for` varchar(255) DEFAULT NULL,
+  `reason` text,
+  `uid` int DEFAULT NULL,
+  `shop_id` varchar(255) DEFAULT NULL,
+  `log_date` date DEFAULT NULL,
+  `log_time` time DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_salon_expense_log` (`shop_id`,`log_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `salon_expense_logs` */
+
+insert  into `salon_expense_logs`(`id`,`expense_id`,`action`,`old_amount`,`new_amount`,`old_expense_for`,`new_expense_for`,`reason`,`uid`,`shop_id`,`log_date`,`log_time`) values 
+(1,53,'cancel',1002.00,1002.00,'aaa','aaa','aa',1,'S01','2026-11-05','11:14:02');
+
 /*Table structure for table `salon_expenses` */
 
 DROP TABLE IF EXISTS `salon_expenses`;
@@ -5507,65 +5543,66 @@ CREATE TABLE `salon_expenses` (
   `uid` int DEFAULT NULL,
   `exp_date` date DEFAULT NULL,
   `exp_time` time DEFAULT NULL,
+  `is_cancelled` tinyint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `salon_expenses` */
 
-insert  into `salon_expenses`(`id`,`amount`,`expense_for`,`pay_mode`,`customer_type`,`shop_id`,`uid`,`exp_date`,`exp_time`) values 
-(1,150.00,'flower','cash','cable','S01',32,'2026-09-25','10:34:06'),
-(2,50.00,'water can','cash','cable','S01',31,'2026-09-25','10:49:30'),
-(3,950.00,'wire coil','cash','cable','S01',32,'2026-09-26','19:46:54'),
-(4,30.00,'FLOWER','cash','cable','S01',32,'2026-10-02','19:44:08'),
-(5,50.00,'water  3/10/2026','cash','cable','S01',32,'2026-10-05','10:27:36'),
-(6,30.00,'FLOWER','cash','cable','S01',32,'2026-10-06','12:38:24'),
-(7,50.00,'WATER','cash','cable','S01',32,'2026-10-06','12:38:34'),
-(8,50.00,'TEA','cash','cable','S01',32,'2026-10-06','18:22:50'),
-(9,100.00,'CELL RECHARGE','cash','cable','S01',31,'2026-10-06','19:10:36'),
-(10,50.00,'WATER','cash','cable','S01',31,'2026-10-07','17:47:53'),
-(11,1000.00,'amp','cash','cable','S01',30,'2026-10-09','11:13:59'),
-(12,30.00,'flower','cash','cable','S01',32,'2026-10-09','19:23:08'),
-(13,100.00,'Rubber band,pen','cash','cable','S01',32,'2026-10-11','11:00:21'),
-(14,2500.00,'KADAI RENT','cash','cable','S01',32,'2026-10-11','11:08:43'),
-(15,3000.00,'akp kadai rent','cash','cable','S01',31,'2026-10-11','20:12:40'),
-(16,6110.00,'CABLE HARI OM BILL','cash','cable','S01',30,'2026-10-12','19:03:41'),
-(17,30.00,'FLOWER 13/10/26','cash','cable','S01',32,'2026-10-14','14:09:28'),
-(18,5000.00,'SATHYAN 10 DAYS BETA','cash','cable','S01',32,'2026-10-14','14:14:43'),
-(19,3800.00,'1TO13 DAYS BETA','cash','cable','S01',30,'2026-10-14','14:16:03'),
-(20,1000.00,'TAMIL 10/10 ADVANCE AMT','cash','cable','S01',30,'2026-10-14','14:19:19'),
-(21,500.00,'TAMIL','cash','cable','S01',31,'2026-10-14','19:33:26'),
-(22,300.00,'BETA','cash','cable','S01',31,'2026-10-14','19:47:05'),
-(23,40.00,'tata kadai','cash','cable','S01',32,'2026-10-15','16:38:47'),
-(24,1000.00,'MATHI  ADVANCE','cash','cable','S01',32,'2026-10-15','19:52:30'),
-(25,100000.00,'1 TO 15 CABLE TOPUP AMT','cash','cable','S01',30,'2026-10-15','19:59:26'),
-(26,300.00,'BETA','cash','cable','S01',31,'2026-10-15','20:05:33'),
-(27,24500.00,'HOME LOAN','cash','cable','S01',31,'2026-10-15','20:05:44'),
-(28,300.00,'BETA','cash','cable','S01',31,'2026-10-16','19:29:04'),
-(29,12000.00,'MATHI SALARY','cash','cable','S01',30,'2026-10-17','20:40:50'),
-(30,13500.00,'TAMIL SALARY','cash','cable','S01',30,'2026-10-17','20:42:08'),
-(31,1000.00,'AMP SIVABILL','cash','cable','S01',31,'2026-10-18','13:05:28'),
-(32,1500.00,'AYUDHA POOJA BETA','cash','cable','S01',32,'2026-10-18','18:01:32'),
-(33,50.00,'TAPE','cash','cable','S01',31,'2026-10-18','19:31:02'),
-(34,1700.00,'ayutha poojai','cash','cable','S01',31,'2026-10-19','19:12:17'),
-(35,50.00,'WATER','cash','cable','S01',31,'2026-10-21','13:36:03'),
-(36,50.00,'tape','cash','cable','S01',31,'2026-10-23','16:21:35'),
-(37,50.00,'tea','cash','cable','S01',32,'2026-10-26','17:47:21'),
-(38,30.00,'FLOWER','cash','cable','S01',32,'2026-10-27','19:35:38'),
-(39,4500.00,'SATHYAN 9DAYS BETA','cash','cable','S01',30,'2026-10-31','12:15:20'),
-(40,17000.00,'RETHINAAPPA SALARY','cash','cable','S01',30,'2026-10-31','12:16:31'),
-(41,4500.00,'3PERU BETA 17 TO 31','cash','cable','S01',30,'2026-10-31','12:18:13'),
-(42,46000.00,'DIWALI BONUS 3PERU','cash','cable','S01',30,'2026-10-31','12:20:23'),
-(43,1000.00,'21/10  AMP  TATA','cash','cable','S01',30,'2026-10-31','12:28:54'),
-(44,30.00,'FLOWER','cash','cable','S01',32,'2026-10-31','12:36:37'),
-(45,35000.00,'TOP UP AMOUNT','cash','cable','S01',30,'2026-10-31','12:55:07'),
-(46,4730.00,'CURRENT BILL TOWN HOME','cash','cable','S01',30,'2026-10-31','13:03:00'),
-(47,580.00,'CURRENT BILL TATA OFFICE','cash','cable','S01',30,'2026-10-31','13:03:33'),
-(48,3000.00,'MOI AMOUNT','cash','cable','S01',30,'2026-10-31','13:03:55'),
-(49,2490.00,'PATTI','cash','cable','S01',30,'2026-10-31','13:46:18'),
-(50,280.00,'OFFICE KEY','cash','cable','S01',30,'2026-10-31','13:46:46'),
-(51,1000.00,'CAR DIESEL','cash','cable','S01',30,'2026-10-31','13:47:06'),
-(52,2000.00,'CHANDRU','cash','cable','S01',30,'2026-10-31','13:47:17'),
-(53,100.00,'tea','cash','cable','S01',1,'2026-11-01','12:32:15');
+insert  into `salon_expenses`(`id`,`amount`,`expense_for`,`pay_mode`,`customer_type`,`shop_id`,`uid`,`exp_date`,`exp_time`,`is_cancelled`) values 
+(1,150.00,'flower','cash','cable','S01',32,'2026-09-25','10:34:06',0),
+(2,50.00,'water can','cash','cable','S01',31,'2026-09-25','10:49:30',0),
+(3,950.00,'wire coil','cash','cable','S01',32,'2026-09-26','19:46:54',0),
+(4,30.00,'FLOWER','cash','cable','S01',32,'2026-10-02','19:44:08',0),
+(5,50.00,'water  3/10/2026','cash','cable','S01',32,'2026-10-05','10:27:36',0),
+(6,30.00,'FLOWER','cash','cable','S01',32,'2026-10-06','12:38:24',0),
+(7,50.00,'WATER','cash','cable','S01',32,'2026-10-06','12:38:34',0),
+(8,50.00,'TEA','cash','cable','S01',32,'2026-10-06','18:22:50',0),
+(9,100.00,'CELL RECHARGE','cash','cable','S01',31,'2026-10-06','19:10:36',0),
+(10,50.00,'WATER','cash','cable','S01',31,'2026-10-07','17:47:53',0),
+(11,1000.00,'amp','cash','cable','S01',30,'2026-10-09','11:13:59',0),
+(12,30.00,'flower','cash','cable','S01',32,'2026-10-09','19:23:08',0),
+(13,100.00,'Rubber band,pen','cash','cable','S01',32,'2026-10-11','11:00:21',0),
+(14,2500.00,'KADAI RENT','cash','cable','S01',32,'2026-10-11','11:08:43',0),
+(15,3000.00,'akp kadai rent','cash','cable','S01',31,'2026-10-11','20:12:40',0),
+(16,6110.00,'CABLE HARI OM BILL','cash','cable','S01',30,'2026-10-12','19:03:41',0),
+(17,30.00,'FLOWER 13/10/26','cash','cable','S01',32,'2026-10-14','14:09:28',0),
+(18,5000.00,'SATHYAN 10 DAYS BETA','cash','cable','S01',32,'2026-10-14','14:14:43',0),
+(19,3800.00,'1TO13 DAYS BETA','cash','cable','S01',30,'2026-10-14','14:16:03',0),
+(20,1000.00,'TAMIL 10/10 ADVANCE AMT','cash','cable','S01',30,'2026-10-14','14:19:19',0),
+(21,500.00,'TAMIL','cash','cable','S01',31,'2026-10-14','19:33:26',0),
+(22,300.00,'BETA','cash','cable','S01',31,'2026-10-14','19:47:05',0),
+(23,40.00,'tata kadai','cash','cable','S01',32,'2026-10-15','16:38:47',0),
+(24,1000.00,'MATHI  ADVANCE','cash','cable','S01',32,'2026-10-15','19:52:30',0),
+(25,100000.00,'1 TO 15 CABLE TOPUP AMT','cash','cable','S01',30,'2026-10-15','19:59:26',0),
+(26,300.00,'BETA','cash','cable','S01',31,'2026-10-15','20:05:33',0),
+(27,24500.00,'HOME LOAN','cash','cable','S01',31,'2026-10-15','20:05:44',0),
+(28,300.00,'BETA','cash','cable','S01',31,'2026-10-16','19:29:04',0),
+(29,12000.00,'MATHI SALARY','cash','cable','S01',30,'2026-10-17','20:40:50',0),
+(30,13500.00,'TAMIL SALARY','cash','cable','S01',30,'2026-10-17','20:42:08',0),
+(31,1000.00,'AMP SIVABILL','cash','cable','S01',31,'2026-10-18','13:05:28',0),
+(32,1500.00,'AYUDHA POOJA BETA','cash','cable','S01',32,'2026-10-18','18:01:32',0),
+(33,50.00,'TAPE','cash','cable','S01',31,'2026-10-18','19:31:02',0),
+(34,1700.00,'ayutha poojai','cash','cable','S01',31,'2026-10-19','19:12:17',0),
+(35,50.00,'WATER','cash','cable','S01',31,'2026-10-21','13:36:03',0),
+(36,50.00,'tape','cash','cable','S01',31,'2026-10-23','16:21:35',0),
+(37,50.00,'tea','cash','cable','S01',32,'2026-10-26','17:47:21',0),
+(38,30.00,'FLOWER','cash','cable','S01',32,'2026-10-27','19:35:38',0),
+(39,4500.00,'SATHYAN 9DAYS BETA','cash','cable','S01',30,'2026-10-31','12:15:20',0),
+(40,17000.00,'RETHINAAPPA SALARY','cash','cable','S01',30,'2026-10-31','12:16:31',0),
+(41,4500.00,'3PERU BETA 17 TO 31','cash','cable','S01',30,'2026-10-31','12:18:13',0),
+(42,46000.00,'DIWALI BONUS 3PERU','cash','cable','S01',30,'2026-10-31','12:20:23',0),
+(43,1000.00,'21/10  AMP  TATA','cash','cable','S01',30,'2026-10-31','12:28:54',0),
+(44,30.00,'FLOWER','cash','cable','S01',32,'2026-10-31','12:36:37',0),
+(45,35000.00,'TOP UP AMOUNT','cash','cable','S01',30,'2026-10-31','12:55:07',0),
+(46,4730.00,'CURRENT BILL TOWN HOME','cash','cable','S01',30,'2026-10-31','13:03:00',0),
+(47,580.00,'CURRENT BILL TATA OFFICE','cash','cable','S01',30,'2026-10-31','13:03:33',0),
+(48,3000.00,'MOI AMOUNT','cash','cable','S01',30,'2026-10-31','13:03:55',0),
+(49,2490.00,'PATTI','cash','cable','S01',30,'2026-10-31','13:46:18',0),
+(50,280.00,'OFFICE KEY','cash','cable','S01',30,'2026-10-31','13:46:46',0),
+(51,1000.00,'CAR DIESEL','cash','cable','S01',30,'2026-10-31','13:47:06',0),
+(52,2000.00,'CHANDRU','cash','cable','S01',30,'2026-10-31','13:47:17',0),
+(53,1002.00,'aaa','cash','cable','S01',1,'2026-11-05','11:09:11',1);
 
 /*Table structure for table `special_permission` */
 
