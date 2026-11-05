@@ -41,7 +41,7 @@ public class CollectionPrintService {
     private static final byte[] FEED_4_LINES = {0x1B, 0x64, 0x04};
     private static final byte[] CUT_PARTIAL = {0x1D, 0x56, 0x01};
     private static final byte[] CUT_FEED = {0x1D, 0x56, 0x41, 0x03};
-    private static final int WIDTH_58 = 33;
+    private static final int WIDTH_58 = 32;
     private static final int WIDTH_80 = 48;
     private static final DecimalFormat DF = new DecimalFormat("0.00");
     private final JdbcTemplate jdbcTemplate;
@@ -197,9 +197,9 @@ public class CollectionPrintService {
         write(out, FONT_A);
         write(out, ALIGN_CENTER);
         write(out, BOLD_ON);
-        write(out, nz(receipt.getCompanyName()) + "\n");
+        writeCentered(out, nz(receipt.getCompanyName()), width);
         write(out, BOLD_OFF);
-        writeAddress(out, receipt.getCompanyAddress());
+        writeAddress(out, receipt.getCompanyAddress(), width);
         write(out, ALIGN_LEFT);
         write(out, divider(width));
         write(out, kv("NAME :", nz(receipt.getCustomerName()), width));
@@ -346,24 +346,50 @@ public class CollectionPrintService {
         return null;
     }
 
-    private void writeAddress(ByteArrayOutputStream out, String address) {
+    private void writeAddress(ByteArrayOutputStream out, String address, int width) {
         if (blank(address)) {
             return;
         }
         for (String line : address.split("\\r?\\n")) {
             if (!blank(line)) {
-                write(out, formatAddressLine(line.trim()) + "\n");
+                writeCentered(out, formatAddressLine(line.trim()), width);
             }
         }
+    }
+
+    private void writeCentered(ByteArrayOutputStream out, String text, int width) {
+        String value = text == null ? "" : text.trim();
+        while (value.length() > width) {
+            write(out, value.substring(0, width) + "\n");
+            value = value.substring(width).trim();
+        }
+        write(out, value + "\n");
     }
 
     private String kv(String label, String value, int width) {
         String left = label == null ? "" : label;
         String right = value == null ? "" : value.trim();
-        if (left.length() + 1 + right.length() > width) {
+        if (left.length() > width) {
+            left = left.substring(0, width);
+        }
+        if (right.length() > width) {
+            return left + "\n" + wrapRight(right, width);
+        }
+        if (left.length() + (right.isEmpty() ? 0 : 1) + right.length() > width) {
             return left + "\n" + padLeft(right, width) + "\n";
         }
         return padRight(left, width - right.length()) + right + "\n";
+    }
+
+    private String wrapRight(String value, int width) {
+        StringBuilder sb = new StringBuilder();
+        String rest = value;
+        while (rest.length() > width) {
+            sb.append(rest, 0, width).append('\n');
+            rest = rest.substring(width).trim();
+        }
+        sb.append(padLeft(rest, width)).append('\n');
+        return sb.toString();
     }
 
     private String formatAddressLine(String line) {

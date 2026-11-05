@@ -45,7 +45,7 @@ public class PosPrinterService {
     private static final byte[] FEED_4_LINES = {0x1B, 0x64, 0x04};
     private static final byte[] CUT_PARTIAL = {0x1D, 0x56, 0x01};
     private static final byte[] CUT_FEED = {0x1D, 0x56, 0x41, 0x03};
-    private static final int WIDTH_58 = 33;
+    private static final int WIDTH_58 = 32;
     private static final int WIDTH_80 = 48;
     private static final DecimalFormat DF = new DecimalFormat("0.00");
 

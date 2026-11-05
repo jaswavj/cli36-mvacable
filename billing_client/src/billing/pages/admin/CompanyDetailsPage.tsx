@@ -140,13 +140,13 @@ const CompanyDetailsPage: React.FC = () => {
                   value={form.thermalPaperMm}
                   onChange={(e) => setForm({ ...form, thermalPaperMm: Number(e.target.value) })}
                 >
-                  <option value={58}>58mm — 33 characters</option>
+                  <option value={58}>58mm — 32 characters</option>
                   <option value={80}>80mm — 48 characters</option>
                 </select>
                 <div className="mst-note">
                   {form.thermalPaperMm === 80
-                    ? '80mm uses a wider slip (48 dashes).'
-                    : '58mm matches the sample slip (33 dashes).'}
+                    ? '80mm uses a wider slip (48 characters).'
+                    : '58mm printers are 32 characters wide. Extra characters wrap to the next line.'}
                 </div>
               </div>
               {form.thermalPrintType === 1 && (
